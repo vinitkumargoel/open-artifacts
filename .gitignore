@@ -1,0 +1,9 @@
+node_modules/
+.env
+.DS_Store
+data/artifacts/tmp/
+data/artifacts/*
+!data/artifacts/.gitkeep
+!data/artifacts/tmp/.gitkeep
+coverage/
+*.log

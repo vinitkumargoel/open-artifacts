@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OpenArtifacts (open-artifacts) &bull; Comprehensive Product Requirements Document for a self-hosted, sandboxed artifact publishing, versioning, and viewer platform.">
+  <meta property="og:title" content="OpenArtifacts &bull; Product Requirements Document">
+  <meta property="og:description" content="Production-ready PRD for self-hosted HTML artifact hosting with UUID-4, versioning, sandbox security, and Claude Code skill integration.">
+  <meta property="og:type" content="article">
+  <title>OpenArtifacts &bull; Product Requirements Document (PRD)</title>
+  <style>
+    :root {
+      --bg-canvas: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f1f5f9;
+      --bg-active: #e2e8f0;
+      --border-subtle: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text-primary: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #475569;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-subtle: #eff6ff;
+      --accent-border: #bfdbfe;
+      --success: #059669;
+      --success-subtle: #ecfdf5;
+      --success-border: #a7f3d0;
+      --warning: #d97706;
+      --warning-subtle: #fffbeb;
+      --warning-border: #fde68a;
+      --danger: #dc2626;
+      --danger-subtle: #fef2f2;
+      --danger-border: #fecaca;
+      --purple: #7c3aed;
+      --purple-subtle: #f5f3ff;
+      --purple-border: #ddd6fe;
+      --code-bg: #0f172a;
+      --code-text: #e2e8f0;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08);
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg-canvas: #090d16;
+        --bg-surface: #111827;
+        --bg-subtle: #1f2937;
+        --bg-active: #374151;
+        --border-subtle: #1f2937;
+        --border-strong: #374151;
+        --text-primary: #f8fafc;
+        --text-secondary: #cbd5e1;
+        --text-muted: #94a3b8;
+        --accent: #3b82f6;
+        --accent-hover: #60a5fa;
+        --accent-subtle: #1e293b;
+        --accent-border: #1e3a8a;
+        --success: #34d399;
+        --success-subtle: #064e3b;
+        --success-border: #065f46;
+        --warning: #fbbf24;
+        --warning-subtle: #451a03;
+        --warning-border: #78350f;
+        --danger: #f87171;
+        --danger-subtle: #450a0a;
+        --danger-border: #7f1d1d;
+        --purple: #a78bfa;
+        --purple-subtle: #2e1065;
+        --purple-border: #5b21b6;
+        --code-bg: #030712;
+        --code-text: #f3f4f6;
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --bg-canvas: #090d16;
+      --bg-surface: #111827;
+      --bg-subtle: #1f2937;
+      --bg-active: #374151;
+      --border-subtle: #1f2937;
+      --border-strong: #374151;
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --accent-subtle: #1e293b;
+      --accent-border: #1e3a8a;
+      --success: #34d399;
+      --success-subtle: #064e3b;
+      --success-border: #065f46;
+      --warning: #fbbf24;
+      --warning-subtle: #451a03;
+      --warning-border: #78350f;
+      --danger: #f87171;
+      --danger-subtle: #450a0a;
+      --danger-border: #7f1d1d;
+      --purple: #a78bfa;
+      --purple-subtle: #2e1065;
+      --purple-border: #5b21b6;
+      --code-bg: #030712;
+      --code-text: #f3f4f6;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 10px;
+      background: var(--accent);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 999;
+      border-radius: 4px;
+      font-weight: 600;
+      transition: top 0.2s;
+    }
+    .skip-link:focus { top: 10px; }
+
+    /* Top Navigation Bar */
+    .nav-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      backdrop-filter: blur(8px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 16px;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge-prd {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--purple-subtle);
+      border: 1px solid var(--purple-border);
+      color: var(--purple);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .theme-btn {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .theme-btn:hover {
+      background: var(--bg-active);
+      color: var(--text-primary);
+    }
+
+    /* Container Layout */
+    .layout-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+
+    /* Mobile TOC Accordion */
+    .mobile-toc {
+      display: none;
+      margin-bottom: 20px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+    }
+    .mobile-toc summary {
+      font-weight: 700;
+      cursor: pointer;
+      color: var(--accent);
+      font-size: 14px;
+    }
+    .mobile-toc-links {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .mobile-toc-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    /* Sticky Sidebar Navigation */
+    .sidebar-toc {
+      position: sticky;
+      top: 80px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 20px 16px;
+      box-shadow: var(--shadow-sm);
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+    }
+
+    .toc-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      padding-left: 8px;
+    }
+
+    .toc-link {
+      display: block;
+      padding: 6px 10px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      transition: all 0.15s;
+      margin-bottom: 2px;
+    }
+
+    .toc-link:hover, .toc-link.active {
+      background: var(--accent-subtle);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .main-content {
+      min-width: 0;
+    }
+
+    /* Hero Banner */
+    .hero-banner {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 36px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .hero-eyebrow {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    .hero-title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      text-wrap: balance;
+    }
+
+    .hero-lead {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 820px;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 20px;
+    }
+
+    .meta-item {
+      background: var(--bg-subtle);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      border: 1px solid var(--border-subtle);
+    }
+    .meta-item-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .meta-item-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-top: 2px;
+    }
+
+    /* Section Cards */
+    .section-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-sm);
+      scroll-margin-top: 80px;
+    }
+
+    .section-heading {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-primary);
+    }
+
+    .section-subtext {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+
+    /* Pills & Badges (Theme Token Aware) */
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .pill-p0 { background: var(--danger-subtle); color: var(--danger); border: 1px solid var(--danger-border); }
+    .pill-p1 { background: var(--warning-subtle); color: var(--warning); border: 1px solid var(--warning-border); }
+    .pill-blue { background: var(--accent-subtle); color: var(--accent); border: 1px solid var(--accent-border); }
+    .pill-green { background: var(--success-subtle); color: var(--success); border: 1px solid var(--success-border); }
+    .pill-purple { background: var(--purple-subtle); color: var(--purple); border: 1px solid var(--purple-border); }
+
+    /* Tables */
+    .table-container {
+      overflow-x: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      margin: 16px 0;
+    }
+
+    table.prd-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .prd-table th {
+      background: var(--bg-subtle);
+      padding: 12px 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .prd-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      vertical-align: top;
+    }
+
+    .prd-table tr:last-child td { border-bottom: none; }
+
+    /* User Stories Checklists */
+    .user-story-card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+
+    .user-story-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .acceptance-list {
+      margin-top: 10px;
+      padding-left: 20px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .acceptance-list li {
+      margin-bottom: 4px;
+    }
+
+    /* Flow Diagrams */
+    .flow-box {
+      background: var(--code-bg);
+      color: #38bdf8;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      padding: 20px;
+      border-radius: var(--radius-md);
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+
+    /* Code Blocks */
+    .code-block {
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-x: auto;
+      margin: 12px 0 20px 0;
+    }
+    .code-block .keyword { color: #f472b6; }
+    .code-block .comment { color: #64748b; }
+    .code-block .string { color: #34d399; }
+    .code-block .endpoint { color: #fbbf24; font-weight: 700; }
+    .code-block .fn { color: #60a5fa; }
+
+    /* Highlight Callouts */
+    .security-callout {
+      background: var(--danger-subtle);
+      border: 1px solid var(--danger-border);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      margin: 16px 0;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .skill-highlight-box {
+      background: var(--purple-subtle);
+      border: 1px solid var(--purple-border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin: 20px 0;
+    }
+
+    @media (max-width: 900px) {
+      .layout-wrapper { grid-template-columns: 1fr; }
+      .sidebar-toc { display: none; }
+      .mobile-toc { display: block; }
+    }
+
+    @media print {
+      .nav-bar, .sidebar-toc, .mobile-toc, .theme-btn { display: none; }
+      .layout-wrapper { max-width: 100%; padding: 0; display: block; }
+      .section-card, .hero-banner { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; }
+      .code-block, .flow-box { white-space: pre-wrap; word-break: break-all; }
+    }
+  </style>
+</head>
+<body>
+
+  <a href="#exec" class="skip-link">Skip to main content</a>
+
+  <!-- Top Header -->
+  <header class="nav-bar">
+    <div class="brand">
+      <div class="brand-logo" aria-hidden="true">&lambda;</div>
+      <div>
+        <div class="brand-title">OpenArtifacts (open-artifacts)</div>
+        <div class="brand-subtitle">Production Product Requirements Document &bull; v1.0 MVP</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <span class="badge-prd" role="status">&check; Hardened & Implementation-Ready</span>
+      <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle dark and light theme" aria-pressed="false">🌓 Toggle Theme</button>
+    </div>
+  </header>
+
+  <div class="layout-wrapper">
+
+    <!-- Mobile Table of Contents Accordion -->
+    <details class="mobile-toc">
+      <summary>📌 Jump to Section</summary>
+      <nav class="mobile-toc-links" aria-label="Mobile Table of Contents">
+        <a href="#exec">1. Executive Summary</a>
+        <a href="#problem">2. Problem & Solution</a>
+        <a href="#users">3. Target Users & Personas</a>
+        <a href="#features">4. MVP Feature Scope</a>
+        <a href="#skill">5. Claude Skill Integration</a>
+        <a href="#stories">6. User Stories & Criteria</a>
+        <a href="#flows">7. User & API Flows</a>
+        <a href="#architecture">8. Tech Stack & Architecture</a>
+        <a href="#models">9. Data Models & API Contract</a>
+        <a href="#security">10. Security & Sandbox Guardrails</a>
+        <a href="#errors">11. Error Taxonomy & HTTP Statuses</a>
+        <a href="#scope">12. Out of Scope</a>
+        <a href="#risks">13. Risks & Mitigations</a>
+        <a href="#phases">14. Implementation Phases</a>
+        <a href="#env">15. Environment & Setup Checklist</a>
+      </nav>
+    </details>
+
+    <!-- Sticky Sidebar Navigation -->
+    <aside class="sidebar-toc">
+      <nav aria-label="Document Sections">
+        <div class="toc-title">Table of Contents</div>
+        <a href="#exec" class="toc-link">1. Executive Summary</a>
+        <a href="#problem" class="toc-link">2. Problem & Solution</a>
+        <a href="#users" class="toc-link">3. Target Users & Personas</a>
+        <a href="#features" class="toc-link">4. MVP Feature Scope</a>
+        <a href="#skill" class="toc-link">5. Claude Skill Integration</a>
+        <a href="#stories" class="toc-link">6. User Stories & Criteria</a>
+        <a href="#flows" class="toc-link">7. User & API Flows</a>
+        <a href="#architecture" class="toc-link">8. Tech Stack & Arch</a>
+        <a href="#models" class="toc-link">9. Data Models & API</a>
+        <a href="#security" class="toc-link">10. Security & Sandbox</a>
+        <a href="#errors" class="toc-link">11. Error Taxonomy</a>
+        <a href="#scope" class="toc-link">12. Out of Scope</a>
+        <a href="#risks" class="toc-link">13. Risks & Mitigations</a>
+        <a href="#phases" class="toc-link">14. Implementation Phases</a>
+        <a href="#env" class="toc-link">15. Environment & Setup</a>
+      </nav>
+    </aside>
+
+    <!-- Main PRD Body -->
+    <main class="main-content">
+
+      <!-- Hero Header -->
+      <div class="hero-banner">
+        <div class="hero-eyebrow">Product Requirements Document &bull; Public Open Source Project</div>
+        <h1 class="hero-title">OpenArtifacts: Self-Hosted Artifact Publishing, Versioning & Sandboxed Viewer</h1>
+        <p class="hero-lead">
+          A production-grade, self-hosted platform and companion Claude Code skill (<code>/open-artifacts</code>) to publish, version, and share interactive standalone HTML artifacts (dashboards, prototypes, games, data visualizations) with immutable UUID-4 URLs, zero-trust sandbox execution, and lightweight token authorization.
+        </p>
+
+        <div class="meta-grid">
+          <div class="meta-item">
+            <div class="meta-item-label">Target Repository</div>
+            <div class="meta-item-value"><code>open-artifacts</code> (Public OSS)</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item-label">Claude Code Skill</div>
+            <div class="meta-item-value"><code>/open-artifacts</code></div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item-label">Deployment Target</div>
+            <div class="meta-item-value">Node.js + PM2 on Linux</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item-label">Primary Stack</div>
+            <div class="meta-item-value">Express, Mongo + Disk Hybrid</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. Executive Summary & Vision -->
+      <section class="section-card" id="exec">
+        <h2 class="section-heading">1. Executive Summary & Vision</h2>
+        <p class="section-subtext">
+          Claude Code, AI agents, and developers routinely generate rich standalone HTML files containing embedded CSS, JavaScript, WebGL, Canvas, and React. Today, viewing and sharing these artifacts with clients or colleagues requires sending unwieldy 5MB files over email/chat or configuring heavy cloud hosting. <strong>OpenArtifacts</strong> provides an ultra-lightweight, self-hostable service that accepts an HTML artifact with a single API call or CLI command, assigns a permanent UUID-4, maintains strict versioning history (v1, v2, v3...), and serves it globally in a secure, zero-trust sandboxed viewer.
+        </p>
+      </section>
+
+      <!-- 2. Problem Statement & Value Proposition -->
+      <section class="section-card" id="problem">
+        <h2 class="section-heading">2. Problem Statement & Value Proposition</h2>
+        <div class="table-container">
+          <table class="prd-table">
+            <thead>
+              <tr>
+                <th scope="col" style="width: 25%;">The Problem Today</th>
+                <th scope="col" style="width: 35%;">Existing Workarounds & Flaws</th>
+                <th scope="col" style="width: 40%;">The OpenArtifacts Solution</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Artifacts are trapped in local sessions</strong></td>
+                <td>Sending raw HTML files over Slack or email breaks linked assets, triggers antivirus warnings, and loses live interactivity.</td>
+                <td><strong>Instant Global URL:</strong> Publish via CLI or UI to receive an immutable UUID-4 URL (<code>https://artifacts.example.com/a/4f8b2e31-89ab-4c3e-9012-7a8b9c0d1e2f</code>) viewable anywhere.</td>
+              </tr>
+              <tr>
+                <td><strong>No Versioning for Iterations</strong></td>
+                <td>Manual renames like <code>report_v1.html</code> and <code>report_v2_final.html</code> create link rot and break client-facing links.</td>
+                <td><strong>Atomic Versioning Engine:</strong> Updating an artifact increments version (v1 &rarr; v2), while root URL always renders latest and historical versions remain pinned.</td>
+              </tr>
+              <tr>
+                <td><strong>XSS & Token Theft on Same Origin</strong></td>
+                <td>Serving arbitrary AI-generated HTML on an internal origin risks stealing admin tokens or persistent service worker installation.</td>
+                <td><strong>Defense-in-Depth Sandbox:</strong> Direct <code>/raw</code> responses enforce <code>Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups;</code> yielding an opaque/null origin that cannot touch tokens or cookies.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 3. Target Users & Personas -->
+      <section class="section-card" id="users">
+        <h2 class="section-heading">3. Target Users & Personas</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+          <div class="user-story-card">
+            <div class="user-story-title">
+              <span>🧑‍💻 Developers & Creators</span>
+              <span class="pill pill-blue">Primary Publisher</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+              <strong>Goal:</strong> Generate complex dashboards, charts, and prototypes in Claude Code, and publish them with a single slash command <code>/open-artifacts</code> to send to clients or teammates instantly.
+            </p>
+          </div>
+          <div class="user-story-card">
+            <div class="user-story-title">
+              <span>🤖 Autonomous AI Agents</span>
+              <span class="pill pill-purple">Automated Worker</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+              <strong>Goal:</strong> Deploy deliverables programmatically and return live clickable preview URLs directly in conversation transcripts without human intervention.
+            </p>
+          </div>
+          <div class="user-story-card">
+            <div class="user-story-title">
+              <span>🌍 Clients & External Viewers</span>
+              <span class="pill pill-green">Public Consumer</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+              <strong>Goal:</strong> Open artifact links on phone, tablet, or desktop with zero login friction, switch between versions, toggle responsive device viewports, and download raw HTML.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. MVP Feature Scope -->
+      <section class="section-card" id="features">
+        <h2 class="section-heading">4. MVP Feature Scope (P0 vs P1)</h2>
+        <p class="section-subtext">Strict priority boundaries for launch day (P0) versus post-launch enhancements (P1).</p>
+        <div class="table-container">
+          <table class="prd-table">
+            <thead>
+              <tr>
+                <th scope="col">Priority</th>
+                <th scope="col">Feature Module</th>
+                <th scope="col">Specification & Acceptance Detail</th>
+                <th scope="col">Delivery Mechanism</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="pill pill-p0">P0 (Launch)</span></td>
+                <td><strong>Token-Protected Upload API</strong></td>
+                <td>Accepts multipart HTML uploads, verifies <code>ARTIFACT_ACCESS_TOKEN</code> via timing-safe comparison, validates UUID-4 & positive version ints.</td>
+                <td>REST API (<code>POST /api/artifacts</code>)</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p0">P0 (Launch)</span></td>
+                <td><strong>Title & Description Handling</strong></td>
+                <td>Accepts optional <code>title</code> (max 120 chars) and <code>description</code> (max 500 chars). Fallback extracts <code>&lt;title&gt;</code> from HTML or defaults to "Untitled Artifact". Context-escaped across all views.</td>
+                <td>Backend Parser + Sanitizer</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p0">P0 (Launch)</span></td>
+                <td><strong>Atomic Versioning Engine</strong></td>
+                <td>Increment version N+1 upon passing existing UUID-4. Temp-file write &rarr; atomic rename &rarr; MongoDB <code>findOneAndUpdate</code> with <code>$inc</code> and <code>$push</code>. Writes sidecar <code>meta.json</code>.</td>
+                <td>Hybrid Storage Engine</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p0">P0 (Launch)</span></td>
+                <td><strong>Sandboxed Public Viewer</strong></td>
+                <td>Clean viewer with top navbar, escaped Title, Description subtitle, Version Dropdown (defaults to latest), device toggles (Desktop/Tablet/Mobile), Fullscreen, and Copy URL.</td>
+                <td>Web UI (<code>/a/:uuid</code>)</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p0">P0 (Launch)</span></td>
+                <td><strong>URL History & State Sync</strong></td>
+                <td>Switching versions in the dropdown calls <code>history.pushState()</code> to update browser URL and updates "Copy URL" target without full page reload.</td>
+                <td>Client-side Router</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p0">P0 (Launch)</span></td>
+                <td><strong>Zero-Trust Raw Streaming</strong></td>
+                <td>Serves raw HTML with mandatory headers: <code>Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups;</code> and <code>X-Content-Type-Options: nosniff</code>. Pinned versions cached <code>immutable</code>.</td>
+                <td>Endpoint (<code>/raw/:uuid/:version</code>)</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p0">P0 (Launch)</span></td>
+                <td><strong>Artifact Takedown / Delete API</strong></td>
+                <td><code>DELETE /api/artifacts/:uuid</code> protected by token to remove corrupted or accidentally published client data immediately.</td>
+                <td>REST API</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p0">P0 (Launch)</span></td>
+                <td><strong>Minimal Web Upload Portal</strong></td>
+                <td>Drag & drop upload with Title, Description, and Token input. Token stored in browser memory/session or custom publisher header.</td>
+                <td>Web UI (<code>/upload</code>)</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p0">P0 (Launch)</span></td>
+                <td><strong>Claude Code Skill (<code>/open-artifacts</code>)</strong></td>
+                <td>Fully specified skill in <code>~/.claude/skills/open-artifacts</code> with CLI flags (<code>--title</code>, <code>--description</code>, <code>--id</code>), automated token discovery, and JSON parsing.</td>
+                <td>Claude Skill / CLI</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p0">P0 (Launch)</span></td>
+                <td><strong>Server-Rendered Social Meta Tags</strong></td>
+                <td>Server injects escaped <code>og:title</code>, <code>og:description</code>, <code>og:url</code>, and <code>twitter:card</code> into viewer shell for rich Slack/iMessage/Twitter unfurls.</td>
+                <td>SSR Template Engine</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p1">P1 (Next)</span></td>
+                <td><strong>Multi-Publisher Identity & Key Management</strong></td>
+                <td>Support multiple named publisher tokens with audit logs (<code>publishedBy</code>) and individual token revocation.</td>
+                <td>Auth Extension</td>
+              </tr>
+              <tr>
+                <td><span class="pill pill-p1">P1 (Next)</span></td>
+                <td><strong>Visual Version Diff Slider</strong></td>
+                <td>Interactive split-screen visual comparison between Version N and Version N-1.</td>
+                <td>Viewer UI Feature</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 5. Claude Skill Integration Specification -->
+      <section class="section-card" id="skill">
+        <h2 class="section-heading">5. Claude Code Skill Specification: <code>/open-artifacts</code></h2>
+        <div class="skill-highlight-box">
+          <h3 style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">
+            ⚡ Complete Skill Specification & CLI Interface
+          </h3>
+          <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
+            Located at <code>~/.claude/skills/open-artifacts/SKILL.md</code>. Automatically loads token from environment variable <code>OPEN_ARTIFACTS_TOKEN</code> or local file <code>~/.claude/open-artifacts.json</code>.
+          </p>
+
+          <div class="code-block">
+<span class="comment"># Command Syntax</span>
+/open-artifacts &lt;file_path&gt; [--title "&lt;title&gt;"] [--description "&lt;description&gt;"] [--id "&lt;uuid-4&gt;"]
+
+<span class="comment"># Example 1: Publish New Artifact</span>
+/open-artifacts ./dist/sales_q3.html --title "Q3 Sales Performance" --description "Interactive revenue charts"
+<span class="comment"># Output:</span>
+&check; Published successfully!
+- Artifact ID: <span class="string">a81c2d94-3450-48e2-b13c-0e241764df8a</span>
+- Version: <span class="string">1 (Latest)</span>
+- Public Viewer: <span class="endpoint">https://artifacts.example.com/a/a81c2d94-3450-48e2-b13c-0e241764df8a</span>
+- Direct Raw: <span class="endpoint">https://artifacts.example.com/raw/a81c2d94-3450-48e2-b13c-0e241764df8a/1</span>
+
+<span class="comment"># Example 2: Update Existing Artifact (Creates Version 2)</span>
+/open-artifacts ./dist/sales_q3.html --id "a81c2d94-3450-48e2-b13c-0e241764df8a" --description "Added dark theme and currency filter"
+<span class="comment"># Output:</span>
+&check; Version 2 published! Viewer updated: <span class="endpoint">https://artifacts.example.com/a/a81c2d94-3450-48e2-b13c-0e241764df8a</span>
+          </div>
+
+          <h4 style="font-size: 13px; font-weight: 700; margin-top: 14px; margin-bottom: 6px;">Skill Acceptance Criteria:</h4>
+          <ul class="acceptance-list">
+            <li>&check; Validates that <code>file_path</code> exists on disk and is a non-empty <code>.html</code> file.</li>
+            <li>&check; Discovers API token from <code>process.env.OPEN_ARTIFACTS_TOKEN</code> or prompts user if unconfigured.</li>
+            <li>&check; Handles HTTP errors gracefully: prints clear error messages on 401 (invalid token), 404 (invalid UUID for update), or 413 (file > 25MB).</li>
+            <li>&check; Returns clickable terminal URLs formatted as GitHub-flavored markdown links.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 6. User Stories & Acceptance Criteria -->
+      <section class="section-card" id="stories">
+        <h2 class="section-heading">6. User Stories & Acceptance Criteria</h2>
+
+        <div class="user-story-card">
+          <div class="user-story-title">
+            <span>US-1: Upload HTML Artifact via API / CLI (P0)</span>
+            <span class="pill pill-p0">P0</span>
+          </div>
+          <div style="font-size: 13px; color: var(--text-secondary);">
+            <em>As a developer or AI agent, I want to upload an HTML file with title and description so that I get an immutable UUID-4 viewable link.</em>
+          </div>
+          <ul class="acceptance-list">
+            <li>&check; Rejects requests with HTTP 401 if token is missing or fails timing-safe pre-hashed comparison.</li>
+            <li>&check; Validates that file is HTML, under 25MB, and streamed via Multer disk storage (not memory buffer).</li>
+            <li>&check; Escapes <code>title</code> (max 120 chars) and <code>description</code> (max 500 chars) before storing in DB.</li>
+            <li>&check; Generates standard RFC 4122 UUID-4 (e.g. <code>crypto.randomUUID()</code>) and creates version 1.</li>
+            <li>&check; Writes raw HTML to <code>./data/artifacts/:uuid/v1.html</code> and companion <code>meta.json</code>.</li>
+            <li>&check; Returns HTTP 201 with <code>{ id, version: 1, title, description, url, rawUrl, createdAt }</code>.</li>
+          </ul>
+        </div>
+
+        <div class="user-story-card">
+          <div class="user-story-title">
+            <span>US-2: Version an Existing Artifact (P0)</span>
+            <span class="pill pill-p0">P0</span>
+          </div>
+          <div style="font-size: 13px; color: var(--text-secondary);">
+            <em>As an author, I want to publish an updated version to an existing UUID-4 so that the main link stays intact while preserving previous versions.</em>
+          </div>
+          <ul class="acceptance-list">
+            <li>&check; Validates <code>id</code> param against strict UUID-4 regex: <code>/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i</code>. Returns 400 on invalid format.</li>
+            <li>&check; Returns 404 if UUID-4 does not exist in the database.</li>
+            <li>&check; Atomically creates version <code>N+1</code> using MongoDB <code>findOneAndUpdate</code> with <code>$inc: { latestVersion: 1 }</code> and <code>$push: { versions: ... }</code>.</li>
+            <li>&check; Main URL <code>/a/:uuid</code> automatically routes to the new version; past versions remain accessible at <code>/a/:uuid/v/:n</code> and <code>/raw/:uuid/:n</code>.</li>
+          </ul>
+        </div>
+
+        <div class="user-story-card">
+          <div class="user-story-title">
+            <span>US-3: Public Sandboxed Viewer with Top Section & Version Switcher (P0)</span>
+            <span class="pill pill-p0">P0</span>
+          </div>
+          <div style="font-size: 13px; color: var(--text-secondary);">
+            <em>As a viewer, I want to see the Artifact Name, Description, and Version dropdown at the top, defaulting to the latest version.</em>
+          </div>
+          <ul class="acceptance-list">
+            <li>&check; <strong>Public & Unauthenticated:</strong> Viewers require zero login credentials.</li>
+            <li>&check; <strong>Top Header:</strong> Displays context-escaped Title, Description subtitle, and created timestamp.</li>
+            <li>&check; <strong>Version Dropdown:</strong> Lists all versions in descending order with latest selected by default.</li>
+            <li>&check; <strong>URL State Sync:</strong> Switching versions invokes <code>history.pushState()</code> to update URL without full page reload.</li>
+            <li>&check; <strong>Toolbar Controls:</strong> Responsive Viewport toggles (Desktop 100%, Tablet 768px, Mobile 375px), Fullscreen expander, Copy URL, Embed snippet, and Raw download button.</li>
+            <li>&check; <strong>Zero-Trust Iframe:</strong> Renders inside <code>&lt;iframe sandbox="allow-scripts allow-forms allow-popups allow-modals" src="/raw/:uuid/:version"&gt;</code> omitting <code>allow-same-origin</code>.</li>
+          </ul>
+        </div>
+
+        <div class="user-story-card">
+          <div class="user-story-title">
+            <span>US-4: Emergency Artifact Takedown / Delete (P0)</span>
+            <span class="pill pill-p0">P0</span>
+          </div>
+          <div style="font-size: 13px; color: var(--text-secondary);">
+            <em>As an administrator, I want to delete an artifact immediately if sensitive data was published accidentally.</em>
+          </div>
+          <ul class="acceptance-list">
+            <li>&check; Endpoint <code>DELETE /api/artifacts/:uuid</code> requires valid <code>ARTIFACT_ACCESS_TOKEN</code>.</li>
+            <li>&check; Removes database record and safely deletes the artifact directory <code>./data/artifacts/:uuid</code> from disk.</li>
+            <li>&check; Returns HTTP 200 with <code>{ success: true, message: "Artifact deleted" }</code>; subsequent requests return 404.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 7. User & API Flows -->
+      <section class="section-card" id="flows">
+        <h2 class="section-heading">7. User & API Flows</h2>
+        <div class="flow-box">
+[Publish / Update Flow]
+Client (CLI / Web / Agent)
+  -> POST /api/artifacts (multipart: file, optional id, title, description)
+  -> Check Authorization Token (timing-safe hash comparison)
+    -> [Invalid] -> HTTP 401 Unauthorized
+    -> [Valid] -> Validate File (is HTML, size &lt;= 25MB)
+      -> Validate UUID-4 (if updating existing) or generate new UUID-4
+      -> Stream to temp file: data/artifacts/tmp/upload-&lt;uuid&gt;.tmp
+      -> Compute SHA-256 hash & extract &lt;title&gt; fallback
+      -> Atomic rename to: data/artifacts/&lt;uuid&gt;/v&lt;version&gt;.html
+      -> Write sidecar: data/artifacts/&lt;uuid&gt;/meta.json
+      -> MongoDB findOneAndUpdate ($inc: { latestVersion: 1 }, $push: { versions })
+      -> Return HTTP 201 { id, version, url, rawUrl }
+
+[Viewer Flow]
+Public Browser
+  -> GET /a/:uuid or /a/:uuid/v/:version
+  -> Validate UUID-4 and version integer
+  -> Fetch Metadata from MongoDB (or fallback to sidecar meta.json)
+  -> Render Server Shell with Escaped Title, Description, OpenGraph tags
+  -> Embed Iframe pointing to /raw/:uuid/:version (Sandboxed)
+  -> User switches version -> client updates iframe src + history.pushState()
+
+[Direct Raw Stream Flow]
+Iframe / Direct Client
+  -> GET /raw/:uuid/:version
+  -> Validate UUID-4 and version integer
+  -> Send Headers:
+       Content-Type: text/html; charset=utf-8
+       Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups allow-modals;
+       X-Content-Type-Options: nosniff
+       Cache-Control: public, max-age=31536000, immutable (for pinned versions)
+  -> Stream file from disk via fs.createReadStream()
+        </div>
+      </section>
+
+      <!-- 8. Tech Stack & Architecture -->
+      <section class="section-card" id="architecture">
+        <h2 class="section-heading">8. Tech Stack & Architecture</h2>
+        <div class="table-container">
+          <table class="prd-table">
+            <thead>
+              <tr>
+                <th scope="col">Layer</th>
+                <th scope="col">Technology</th>
+                <th scope="col">Rationale & Production Configuration</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Backend Runtime</strong></td>
+                <td>Node.js (v20+ LTS) + Express.js</td>
+                <td>Standard, robust multipart streaming, zero unnecessary compile step, ES Modules.</td>
+              </tr>
+              <tr>
+                <td><strong>Process Manager</strong></td>
+                <td>PM2</td>
+                <td>Zero-downtime reloads, log rotation, memory limits, automatic Linux systemd boot persistence.</td>
+              </tr>
+              <tr>
+                <td><strong>Metadata Store</strong></td>
+                <td>MongoDB + Sidecar <code>meta.json</code></td>
+                <td>Primary queries via Mongo with indexed UUID-4. Sidecar <code>meta.json</code> on disk guarantees zero metadata loss if Mongo restarts.</td>
+              </tr>
+              <tr>
+                <td><strong>Artifact Storage</strong></td>
+                <td>Local Filesystem (<code>./data/artifacts</code>)</td>
+                <td>Multer disk storage streaming directly to <code>./data/artifacts/:uuid/v:n.html</code>. Instant static pipe.</td>
+              </tr>
+              <tr>
+                <td><strong>Security Layer</strong></td>
+                <td>Zero-Trust CSP + Sandbox Headers</td>
+                <td>Enforces opaque null-origin execution on all raw HTML rendering. Eliminates cross-origin token/cookie leakage.</td>
+              </tr>
+              <tr>
+                <td><strong>Frontend</strong></td>
+                <td>Vanilla HTML5, CSS3, ES6 JS</td>
+                <td>Lightweight single-file templates with server-side escaping. Zero client-side build pipeline needed.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 9. Data Models & API Contract -->
+      <section class="section-card" id="models">
+        <h2 class="section-heading">9. Data Models & API Contract</h2>
+
+        <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px;">MongoDB Mongoose Schema</h3>
+        <div class="code-block">
+<span class="keyword">import</span> mongoose <span class="keyword">from</span> <span class="string">'mongoose'</span>;
+
+<span class="keyword">const</span> VersionSchema = <span class="keyword">new</span> mongoose.Schema({
+  versionNumber: { type: Number, required: <span class="keyword">true</span> },
+  description: { type: String, maxlength: 500, default: <span class="string">''</span> }, <span class="comment">// Version release note</span>
+  filePath: { type: String, required: <span class="keyword">true</span> },
+  fileSize: { type: Number, required: <span class="keyword">true</span> },
+  contentHash: { type: String, required: <span class="keyword">true</span> }, <span class="comment">// SHA-256</span>
+  createdAt: { type: Date, default: Date.now }
+}, { _id: <span class="keyword">false</span> });
+
+<span class="keyword">const</span> ArtifactSchema = <span class="keyword">new</span> mongoose.Schema({
+  _id: {
+    type: String,
+    required: <span class="keyword">true</span>,
+    match: <span class="string">/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i</span>
+  },
+  title: { type: String, required: <span class="keyword">true</span>, maxlength: 120, default: <span class="string">'Untitled Artifact'</span> },
+  description: { type: String, maxlength: 500, default: <span class="string">''</span> },
+  latestVersion: { type: Number, default: 1 },
+  viewCount: { type: Number, default: 0 },
+  versions: [VersionSchema],
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+ArtifactSchema.index({ createdAt: -1 });
+        </div>
+
+        <h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px 0;">REST API Endpoints Specification</h3>
+        <div class="table-container">
+          <table class="prd-table">
+            <thead>
+              <tr>
+                <th scope="col">Method</th>
+                <th scope="col">Endpoint</th>
+                <th scope="col">Auth</th>
+                <th scope="col">Request Parameters</th>
+                <th scope="col">Response Details & Cache Policy</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>POST</code></td>
+                <td><code>/api/artifacts</code></td>
+                <td><span class="pill pill-p0">Token</span></td>
+                <td>Multipart: <code>file</code> (.html), optional <code>id</code> (UUID-4), <code>title</code>, <code>description</code></td>
+                <td><code>201 Created</code> &rarr; <code>{ id, version, title, description, url, rawUrl }</code></td>
+              </tr>
+              <tr>
+                <td><code>GET</code></td>
+                <td><code>/api/artifacts/:uuid</code></td>
+                <td><span class="pill pill-green">Public</span></td>
+                <td>Path: <code>uuid</code></td>
+                <td><code>200 OK</code> &rarr; Full artifact metadata & version list. <code>Cache-Control: no-cache</code></td>
+              </tr>
+              <tr>
+                <td><code>DELETE</code></td>
+                <td><code>/api/artifacts/:uuid</code></td>
+                <td><span class="pill pill-p0">Token</span></td>
+                <td>Path: <code>uuid</code></td>
+                <td><code>200 OK</code> &rarr; <code>{ success: true, message: "Artifact deleted" }</code></td>
+              </tr>
+              <tr>
+                <td><code>GET</code></td>
+                <td><code>/a/:uuid</code></td>
+                <td><span class="pill pill-green">Public</span></td>
+                <td>Path: <code>uuid</code></td>
+                <td><code>200 OK</code> &rarr; HTML Viewer shell rendering latest version. <code>Cache-Control: no-cache</code></td>
+              </tr>
+              <tr>
+                <td><code>GET</code></td>
+                <td><code>/a/:uuid/v/:version</code></td>
+                <td><span class="pill pill-green">Public</span></td>
+                <td>Path: <code>uuid</code>, <code>version</code></td>
+                <td><code>200 OK</code> &rarr; HTML Viewer shell pinned to specific version. <code>Cache-Control: public, max-age=86400</code></td>
+              </tr>
+              <tr>
+                <td><code>GET</code></td>
+                <td><code>/raw/:uuid</code></td>
+                <td><span class="pill pill-green">Public</span></td>
+                <td>Path: <code>uuid</code></td>
+                <td><code>302 Redirect</code> &rarr; Redirects to <code>/raw/:uuid/:latestVersion</code>. <code>Cache-Control: no-cache</code></td>
+              </tr>
+              <tr>
+                <td><code>GET</code></td>
+                <td><code>/raw/:uuid/:version</code></td>
+                <td><span class="pill pill-green">Public</span></td>
+                <td>Path: <code>uuid</code>, <code>version</code></td>
+                <td><code>200 OK</code> &rarr; Sandboxed raw HTML stream. <code>Cache-Control: public, max-age=31536000, immutable</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 10. Security & Sandbox Guardrails -->
+      <section class="section-card" id="security">
+        <h2 class="section-heading">10. Security & Sandbox Guardrails</h2>
+
+        <div class="security-callout">
+          <strong>🔒 Critical Security Enforcement (Addresses All Vulnerability Vectors):</strong>
+          <ul style="margin-left: 20px; margin-top: 8px; line-height: 1.7;">
+            <li><strong>Opaque Origin Sandboxing on <code>/raw</code>:</strong> All raw artifact routes respond with <code>Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups allow-modals;</code> and <code>X-Content-Type-Options: nosniff</code>. This gives the rendered artifact an opaque/null origin so it can NEVER read parent cookies, access <code>localStorage</code>, or install service workers.</li>
+            <li><strong>Never Store Auth Token on Same Origin:</strong> The upload portal does not persist tokens in long-term unpartitioned cookies. API tokens are passed strictly in request headers (<code>Authorization: Bearer &lt;token&gt;</code> or <code>x-access-token</code>).</li>
+            <li><strong>Path Traversal Defense:</strong> Strict regex validation on <code>:uuid</code> (UUID-4 format only) and <code>:version</code> (positive integers only). File paths are strictly resolved via <code>path.join()</code> and verified to remain within <code>STORAGE_PATH</code>.</li>
+            <li><strong>Stored XSS Prevention:</strong> All user-supplied fields (<code>title</code>, <code>description</code>) are HTML-escaped using a robust entity escaper before interpolation into viewer templates, <code>&lt;title&gt;</code>, and <code>og:</code> meta tags.</li>
+            <li><strong>Timing-Safe Token Comparison:</strong> Tokens are pre-hashed using SHA-256 before invoking <code>crypto.timingSafeEqual()</code> to guarantee fixed-length buffers and prevent length-oracle attacks:
+              <div class="code-block" style="margin-top: 8px;">
+<span class="keyword">function</span> <span class="fn">verifyToken</span>(providedToken, secretToken) {
+  <span class="keyword">if</span> (!providedToken || !secretToken) <span class="keyword">return</span> <span class="keyword">false</span>;
+  <span class="keyword">const</span> hashA = crypto.createHash(<span class="string">'sha256'</span>).update(String(providedToken)).digest();
+  <span class="keyword">const</span> hashB = crypto.createHash(<span class="string">'sha256'</span>).update(String(secretToken)).digest();
+  <span class="keyword">return</span> crypto.timingSafeEqual(hashA, hashB);
+}
+              </div>
+            </li>
+            <li><strong>Strict Framing Policies:</strong>
+              Viewer Shell (<code>/a/:uuid</code>) sends <code>Content-Security-Policy: frame-ancestors 'none';</code> to prevent clickjacking on the outer chrome.
+              Raw Endpoint (<code>/raw/:uuid/:version</code>) allows framing with sandboxing for the embed feature.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 11. Error Taxonomy & HTTP Statuses -->
+      <section class="section-card" id="errors">
+        <h2 class="section-heading">11. Error Taxonomy & HTTP Status Codes</h2>
+        <p class="section-subtext">All API error responses follow a standardized structured JSON format.</p>
+
+        <div class="code-block">
+<span class="comment">// Standard Error JSON Structure</span>
+{
+  "error": {
+    "code": "<span class="endpoint">INVALID_UUID_FORMAT</span>",
+    "message": "The provided artifact ID must be a valid UUID-4 string.",
+    "status": 400
+  }
+}
+        </div>
+
+        <div class="table-container">
+          <table class="prd-table">
+            <thead>
+              <tr>
+                <th scope="col">HTTP Status</th>
+                <th scope="col">Error Code</th>
+                <th scope="col">Trigger Condition</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>400 Bad Request</code></td>
+                <td><code>INVALID_UUID_FORMAT</code></td>
+                <td><code>id</code> parameter is not a valid RFC 4122 UUID-4 string.</td>
+              </tr>
+              <tr>
+                <td><code>400 Bad Request</code></td>
+                <td><code>INVALID_FILE_TYPE</code></td>
+                <td>Uploaded file is not a valid <code>.html</code> file or is empty (0 bytes).</td>
+              </tr>
+              <tr>
+                <td><code>401 Unauthorized</code></td>
+                <td><code>UNAUTHORIZED</code></td>
+                <td>Missing or invalid <code>ARTIFACT_ACCESS_TOKEN</code> in request headers.</td>
+              </tr>
+              <tr>
+                <td><code>404 Not Found</code></td>
+                <td><code>ARTIFACT_NOT_FOUND</code></td>
+                <td>Artifact with specified UUID-4 does not exist.</td>
+              </tr>
+              <tr>
+                <td><code>404 Not Found</code></td>
+                <td><code>VERSION_NOT_FOUND</code></td>
+                <td>Requested version number does not exist for this artifact.</td>
+              </tr>
+              <tr>
+                <td><code>413 Payload Too Large</code></td>
+                <td><code>FILE_TOO_LARGE</code></td>
+                <td>Uploaded artifact file exceeds configured <code>MAX_FILE_SIZE_MB</code> (25MB).</td>
+              </tr>
+              <tr>
+                <td><code>429 Too Many Requests</code></td>
+                <td><code>RATE_LIMITED</code></td>
+                <td>Upload rate limit exceeded (30 req/min) or read rate limit exceeded (120 req/min).</td>
+              </tr>
+              <tr>
+                <td><code>500 Internal Error</code></td>
+                <td><code>INTERNAL_SERVER_ERROR</code></td>
+                <td>Unexpected filesystem or database failure.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 12. Out of Scope -->
+      <section class="section-card" id="scope">
+        <h2 class="section-heading">12. Out of Scope (Explicit MVP Boundaries)</h2>
+        <div style="background: var(--warning-subtle); border: 1px solid var(--warning-border); border-radius: var(--radius-md); padding: 18px; font-size: 13px; color: var(--text-primary); line-height: 1.7;">
+          <strong>The following features are explicitly deferred from the v1 MVP:</strong>
+          <ul style="margin-left: 20px; margin-top: 8px;">
+            <li>❌ <strong>No multi-user authentication / OAuth / Signups:</strong> Single environment variable token for publishers.</li>
+            <li>❌ <strong>No public search directory or explore gallery:</strong> Artifacts remain unlisted and accessible only with the exact UUID-4.</li>
+            <li>❌ <strong>No multi-file project bundler / zip unpacker:</strong> Artifacts are standalone single-file HTML (with inlined CSS/JS/images).</li>
+            <li>❌ <strong>No automated screenshot generation / headless browser rendering:</strong> OpenGraph cards use high-contrast branded card fallbacks.</li>
+            <li>❌ <strong>No billing, Stripe, or monetization layer.</strong></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 13. Risks & Mitigations -->
+      <section class="section-card" id="risks">
+        <h2 class="section-heading">13. Risks & Mitigations</h2>
+        <div class="table-container">
+          <table class="prd-table">
+            <thead>
+              <tr>
+                <th scope="col">Risk Description</th>
+                <th scope="col">Likelihood</th>
+                <th scope="col">Impact</th>
+                <th scope="col">Mitigation Strategy</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Malicious JS uploaded in artifact attempting XSS / credential harvesting</td>
+                <td>Medium</td>
+                <td>High</td>
+                <td>Strict <code>sandbox</code> header on <code>/raw</code> isolates origin to null. Omission of <code>allow-same-origin</code> completely blocks cookie & storage access.</td>
+              </tr>
+              <tr>
+                <td>Concurrent updates causing lost versions / file collision</td>
+                <td>Low</td>
+                <td>Medium</td>
+                <td>Temp file streaming &rarr; atomic filesystem rename &rarr; MongoDB <code>findOneAndUpdate</code> with atomic <code>$inc</code> and <code>$push</code>.</td>
+              </tr>
+              <tr>
+                <td>Home Server MongoDB brief downtime</td>
+                <td>Low</td>
+                <td>Medium</td>
+                <td>Dual-write writes <code>meta.json</code> alongside raw HTML files on disk, enabling disk-level fallback.</td>
+              </tr>
+              <tr>
+                <td>Memory spikes under concurrent 25MB uploads</td>
+                <td>Low</td>
+                <td>High</td>
+                <td>Multer configured with <code>diskStorage</code> to stream directly to filesystem rather than buffering in Node.js RAM.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 14. Implementation Phases -->
+      <section class="section-card" id="phases">
+        <h2 class="section-heading">14. Implementation Phases & Definition of Done</h2>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="user-story-card">
+            <div class="user-story-title">
+              <span>Phase 1: Core Engine & Storage (Milestone 1)</span>
+              <span class="pill pill-blue">Step 1</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary);">
+              Setup Node.js ESM repository, Express app, Multer disk storage, MongoDB schemas with UUID-4 index, sidecar <code>meta.json</code> dual-writer, and timing-safe token verification middleware.
+            </p>
+          </div>
+          <div class="user-story-card">
+            <div class="user-story-title">
+              <span>Phase 2: Endpoints & Sandboxing (Milestone 2)</span>
+              <span class="pill pill-green">Step 2</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary);">
+              Implement <code>POST /api/artifacts</code>, <code>DELETE /api/artifacts/:uuid</code>, <code>GET /raw/:uuid/:version</code> with CSP sandbox headers, and rate limiting middlewares.
+            </p>
+          </div>
+          <div class="user-story-card">
+            <div class="user-story-title">
+              <span>Phase 3: Web Upload Portal & Global Viewer UI (Milestone 3)</span>
+              <span class="pill pill-purple">Step 3</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary);">
+              Build the minimal drag & drop upload interface, sandboxed responsive viewer shell (<code>/a/:uuid</code>) with version dropdown, device toggles, copy URL, and social meta tags.
+            </p>
+          </div>
+          <div class="user-story-card">
+            <div class="user-story-title">
+              <span>Phase 4: Claude Code Skill & PM2 Deployment (Milestone 4)</span>
+              <span class="pill pill-blue">Step 4</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary);">
+              Create <code>~/.claude/skills/open-artifacts/SKILL.md</code>, configure <code>ecosystem.config.js</code> for PM2, launch on Home Server, and test end-to-end global access.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 15. Environment Variables & Setup -->
+      <section class="section-card" id="env">
+        <h2 class="section-heading">15. Environment Variables & Setup Checklist</h2>
+        <div class="code-block">
+<span class="comment"># .env Production Configuration Template</span>
+PORT=<span class="endpoint">3008</span>
+NODE_ENV=<span class="string">production</span>
+BASE_URL=<span class="string">https://artifacts.example.com</span>
+
+<span class="comment"># Publisher Access Token (Generate with: openssl rand -hex 24)</span>
+ARTIFACT_ACCESS_TOKEN=<span class="string">your_secure_random_token_here</span>
+
+<span class="comment"># Database & File Storage</span>
+MONGO_URI=<span class="string">mongodb://127.0.0.1:27017/open_artifacts</span>
+STORAGE_PATH=<span class="string">./data/artifacts</span>
+MAX_FILE_SIZE_MB=<span class="string">25</span>
+
+<span class="comment"># Rate Limits</span>
+UPLOAD_RATE_LIMIT_PER_MIN=<span class="string">30</span>
+READ_RATE_LIMIT_PER_MIN=<span class="string">120</span>
+        </div>
+      </section>
+
+      <footer style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; font-style: italic;">
+        This PRD is a living, hardened specification. Update it as you build, learn, and iterate.
+      </footer>
+
+    </main>
+  </div>
+
+  <script>
+    // Theme Switcher with localStorage persistence and OS preference detection
+    function initTheme() {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        updateThemeButton(savedTheme);
+      } else {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        updateThemeButton(prefersDark ? 'dark' : 'light');
+      }
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme') ||
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeButton(newTheme);
+    }
+
+    function updateThemeButton(theme) {
+      const btn = document.getElementById('theme-btn');
+      if (btn) {
+        btn.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+      }
+    }
+
+    initTheme();
+
+    // High-performance IntersectionObserver Scroll-Spy
+    const sections = document.querySelectorAll('section[id], div[id="exec"]');
+    const navLinks = document.querySelectorAll('.toc-link');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const id = entry.target.getAttribute('id');
+          navLinks.forEach((link) => {
+            const href = link.getAttribute('href');
+            if (href === '#' + id) {
+              link.classList.add('active');
+            } else {
+              link.classList.remove('active');
+            }
+          });
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+
+    sections.forEach((sec) => observer.observe(sec));
+  </script>
+</body>
+</html>

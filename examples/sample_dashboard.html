@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Sales & Telemetry Dashboard</title>
+  <meta name="description" content="Interactive demo artifact with live telemetry, responsive charts, and real-time metrics.">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-hover: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --success: #10b981;
+      --purple: #8b5cf6;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 32px 24px;
+      line-height: 1.6;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .badge {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: transform 0.2s;
+    }
+    .card:hover { transform: translateY(-2px); }
+    .card-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+    .card-val { font-size: 26px; font-weight: 800; margin-top: 4px; color: var(--text); }
+    .chart-container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    canvas { width: 100%; height: 200px; display: block; }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1 style="font-size: 22px; font-weight: 800;">🚀 Antigravity Core Telemetry</h1>
+      <p style="font-size: 13px; color: var(--text-muted);">Live artifact rendering via OpenArtifacts zero-trust sandbox</p>
+    </div>
+    <div class="badge"><span class="dot"></span> Live Stream Active</div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-label">Active Users</div>
+      <div class="card-val" id="usersVal">1,482</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Requests / Sec</div>
+      <div class="card-val" id="rpsVal">3,892</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Avg Latency</div>
+      <div class="card-val" style="color: var(--success);" id="latVal">14ms</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Cache Hit Ratio</div>
+      <div class="card-val" style="color: var(--purple);">99.4%</div>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h3 style="font-size: 16px; font-weight: 700;">Real-Time Throughput (Canvas Render)</h3>
+      <button class="btn" onclick="randomizeData()">⚡ Pulse Telemetry</button>
+    </div>
+    <canvas id="telemetryCanvas"></canvas>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('telemetryCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+      canvas.width = canvas.parentElement.clientWidth - 48;
+      canvas.height = 180;
+      draw();
+    }
+    window.addEventListener('resize', resize);
+
+    let points = Array.from({ length: 30 }, () => Math.floor(Math.random() * 60) + 40);
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const step = canvas.width / (points.length - 1);
+
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height - (points[0] / 100) * canvas.height);
+      for (let i = 1; i < points.length; i++) {
+        const x = i * step;
+        const y = canvas.height - (points[i] / 100) * canvas.height;
+        ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Fill area under curve
+      ctx.lineTo(canvas.width, canvas.height);
+      ctx.lineTo(0, canvas.height);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      grad.addColorStop(0, 'rgba(59, 130, 246, 0.3)');
+      grad.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+
+    function randomizeData() {
+      points.shift();
+      points.push(Math.floor(Math.random() * 60) + 40);
+      document.getElementById('usersVal').textContent = (1400 + Math.floor(Math.random() * 200)).toLocaleString();
+      document.getElementById('rpsVal').textContent = (3800 + Math.floor(Math.random() * 300)).toLocaleString();
+      document.getElementById('latVal').textContent = (12 + Math.floor(Math.random() * 6)) + 'ms';
+      draw();
+    }
+
+    setInterval(randomizeData, 1500);
+    setTimeout(resize, 50);
+  </script>
+</body>
+</html>

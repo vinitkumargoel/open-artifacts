@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Artifacts Host &bull; Feasibility & Architecture Plan</title>
+  <style>
+    :root {
+      --bg-canvas: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f1f5f9;
+      --bg-active: #e2e8f0;
+      --border-subtle: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-subtle: #eff6ff;
+      --accent-border: #bfdbfe;
+      --success: #10b981;
+      --success-subtle: #ecfdf5;
+      --success-border: #a7f3d0;
+      --warning: #f59e0b;
+      --warning-subtle: #fffbeb;
+      --code-bg: #0f172a;
+      --code-text: #e2e8f0;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg-canvas: #090d16;
+        --bg-surface: #111827;
+        --bg-subtle: #1f2937;
+        --bg-active: #374151;
+        --border-subtle: #1f2937;
+        --border-strong: #374151;
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+        --accent: #3b82f6;
+        --accent-hover: #60a5fa;
+        --accent-subtle: #1e293b;
+        --accent-border: #1e3a8a;
+        --success: #34d399;
+        --success-subtle: #064e3b;
+        --success-border: #065f46;
+        --warning: #fbbf24;
+        --warning-subtle: #451a03;
+        --code-bg: #030712;
+        --code-text: #f3f4f6;
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --bg-canvas: #090d16;
+      --bg-surface: #111827;
+      --bg-subtle: #1f2937;
+      --bg-active: #374151;
+      --border-subtle: #1f2937;
+      --border-strong: #374151;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --accent-subtle: #1e293b;
+      --accent-border: #1e3a8a;
+      --success: #34d399;
+      --success-subtle: #064e3b;
+      --success-border: #065f46;
+      --warning: #fbbf24;
+      --warning-subtle: #451a03;
+      --code-bg: #030712;
+      --code-text: #f3f4f6;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 80px;
+    }
+
+    /* Top Navigation Bar */
+    .nav-bar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      backdrop-filter: blur(8px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent) 0%, #6366f1 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 16px;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge-feasibility {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--success-subtle);
+      border: 1px solid var(--success-border);
+      color: var(--success);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .theme-toggle-btn {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .theme-toggle-btn:hover {
+      background: var(--bg-active);
+      color: var(--text-primary);
+    }
+
+    /* Container Layout */
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* Hero Section */
+    .hero {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 36px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-glow {
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(37,99,235,0.12) 0%, rgba(37,99,235,0) 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-eyebrow {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .hero-title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      text-wrap: balance;
+    }
+
+    .hero-lead {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 800px;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+
+    .quick-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 24px;
+    }
+
+    .stat-card {
+      background: var(--bg-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Section Styles */
+    .section-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Tab Switcher */
+    .tab-bar {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      padding: 10px 16px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Architecture Visual Diagram */
+    .arch-flow-box {
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .flow-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      position: relative;
+    }
+
+    .flow-step-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .flow-step-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .flow-step-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .step-number {
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--accent-subtle);
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+
+    .step-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .step-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Comparison Matrix Table */
+    .comparison-table-wrapper {
+      overflow-x: auto;
+      margin: 16px 0;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+    }
+
+    table.comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .comparison-table th {
+      background: var(--bg-subtle);
+      padding: 12px 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .comparison-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      vertical-align: top;
+    }
+
+    .comparison-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .comparison-table tr.highlight-row {
+      background: var(--accent-subtle);
+    }
+    .comparison-table tr.highlight-row td {
+      color: var(--text-primary);
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pill-green { background: var(--success-subtle); color: var(--success); }
+    .pill-blue { background: var(--accent-subtle); color: var(--accent); }
+    .pill-yellow { background: var(--warning-subtle); color: var(--warning); }
+
+    /* Code & Terminal Blocks */
+    .code-block {
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-x: auto;
+      margin: 12px 0 20px 0;
+      position: relative;
+    }
+
+    .code-block .comment { color: #6b7280; }
+    .code-block .keyword { color: #ec4899; }
+    .code-block .string { color: #10b981; }
+    .code-block .fn { color: #60a5fa; }
+    .code-block .endpoint { color: #fbbf24; font-weight: 600; }
+
+    /* Interactive Live UI Mockups */
+    .mockup-container {
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      margin: 20px 0;
+    }
+
+    .mockup-header {
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .mockup-url-bar {
+      flex: 1;
+      max-width: 500px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-family: monospace;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .mockup-body {
+      padding: 24px;
+      min-height: 280px;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-canvas);
+    }
+
+    /* Mockup: Upload View */
+    .upload-dropzone {
+      border: 2px dashed var(--border-strong);
+      border-radius: var(--radius-md);
+      padding: 36px 20px;
+      text-align: center;
+      background: var(--bg-surface);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .upload-dropzone:hover {
+      border-color: var(--accent);
+      background: var(--accent-subtle);
+    }
+
+    .upload-icon-svg {
+      width: 44px;
+      height: 44px;
+      margin: 0 auto 12px auto;
+      color: var(--accent);
+    }
+
+    .token-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .mock-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-family: monospace;
+    }
+
+    .mock-btn {
+      padding: 8px 18px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .mock-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    /* Mockup: Viewer View */
+    .viewer-navbar {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 8px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .viewer-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .version-select {
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+      font-size: 12px;
+      background: var(--bg-subtle);
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .device-toggles {
+      display: flex;
+      background: var(--bg-subtle);
+      border-radius: 6px;
+      padding: 2px;
+    }
+
+    .dev-btn {
+      padding: 4px 8px;
+      font-size: 11px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .dev-btn.active {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-weight: 600;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Roadmap Timeline */
+    .roadmap-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+    }
+
+    .roadmap-item {
+      display: flex;
+      gap: 16px;
+    }
+
+    .roadmap-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .roadmap-card {
+      flex: 1;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+    }
+
+    .roadmap-card h4 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .roadmap-card ul {
+      margin-left: 20px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* Action Callout */
+    .action-callout {
+      background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);
+      color: #ffffff;
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .action-callout h3 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .action-callout p {
+      font-size: 14px;
+      color: #cbd5e1;
+      max-width: 600px;
+    }
+
+    .start-btn {
+      background: #ffffff;
+      color: #1e3a8a;
+      border: none;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .start-btn:hover {
+      background: #f1f5f9;
+      transform: translateY(-1px);
+    }
+
+    @media (max-width: 768px) {
+      .container { padding: 16px; }
+      .hero { padding: 20px; }
+      .hero-title { font-size: 24px; }
+      .quick-stats-grid { grid-template-columns: 1fr; }
+      .action-callout { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <nav class="nav-bar">
+    <div class="brand">
+      <div class="brand-logo">&lambda;</div>
+      <div>
+        <div class="brand-title">Antigravity Artifacts (vinitk_artifacts)</div>
+        <div class="brand-subtitle">Self-Hosted Claude Artifacts Hosting & Versioning System</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="badge-feasibility">
+        <span class="pulse-dot"></span>
+        <span>100% Feasible &bull; Production Ready Plan</span>
+      </div>
+      <button class="theme-toggle-btn" onclick="toggleTheme()">🌓 Toggle Theme</button>
+    </div>
+  </nav>
+
+  <main class="container">
+
+    <!-- Hero Section -->
+    <header class="hero">
+      <div class="hero-glow"></div>
+      <div class="hero-eyebrow">System Architecture & Feasibility Study</div>
+      <h1 class="hero-title">Self-Hosted Artifact Hosting & Versioning Platform</h1>
+      <p class="hero-lead">
+        A lightweight, ultra-fast Node.js microservice deployed with PM2 on your Home Server. Upload any interactive HTML artifact via Web UI or CLI/cURL with environment token authorization, generate versioned permanent URLs, and render in a secure, sandboxed public viewer accessible anywhere globally.
+      </p>
+
+      <div class="quick-stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Architecture Core</div>
+          <div class="stat-value">Node.js + Express / Fastify</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Process Manager</div>
+          <div class="stat-value">PM2 Daemon</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Storage Engine</div>
+          <div class="stat-value">MongoDB + Disk Hybrid</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Access Control</div>
+          <div class="stat-value">Simple Env Token Auth</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('overview')">1. Overview & Architecture</button>
+      <button class="tab-btn" onclick="switchTab('storage')">2. Storage & Database Choice</button>
+      <button class="tab-btn" onclick="switchTab('security')">3. Security & Sandboxing</button>
+      <button class="tab-btn" onclick="switchTab('api')">4. API & Data Schema</button>
+      <button class="tab-btn" onclick="switchTab('ui')">5. UI & Viewer Experience</button>
+      <button class="tab-btn" onclick="switchTab('deployment')">6. Home Server & PM2 Deployment</button>
+      <button class="tab-btn" onclick="switchTab('roadmap')">7. Implementation Steps</button>
+    </div>
+
+    <!-- TAB 1: OVERVIEW & ARCHITECTURE -->
+    <section id="tab-overview" class="tab-content active">
+      <div class="card">
+        <h2 class="section-title">End-to-End System Workflow</h2>
+        <p class="section-desc">How artifacts flow from creation to global rendering in milliseconds.</p>
+
+        <div class="arch-flow-box">
+          <div class="flow-steps">
+
+            <div class="flow-step-card">
+              <div class="flow-step-header">
+                <span class="step-number">Step 01</span>
+                <span class="pill pill-blue">Upload</span>
+              </div>
+              <div class="step-title">Upload Artifact</div>
+              <div class="step-desc">
+                Drag-and-drop <code>.html</code> file on the minimal Web Portal OR send a single <code>POST /api/artifacts</code> with <code>x-auth-token</code>.
+              </div>
+            </div>
+
+            <div class="flow-step-card">
+              <div class="flow-step-header">
+                <span class="step-number">Step 02</span>
+                <span class="pill pill-green">Process</span>
+              </div>
+              <div class="step-title">Token Check & Versioning</div>
+              <div class="step-desc">
+                Server verifies <code>AUTH_TOKEN</code>. If artifact exists with same ID (UUID-4), increments to <code>v2</code>, <code>v3</code>, etc. Else generates a standard UUID-4.
+              </div>
+            </div>
+
+            <div class="flow-step-card">
+              <div class="flow-step-header">
+                <span class="step-number">Step 03</span>
+                <span class="pill pill-blue">Store</span>
+              </div>
+              <div class="step-title">Database & Disk Persistence</div>
+              <div class="step-desc">
+                Metadata (title, size, version history) stored in MongoDB, raw HTML stored in <code>data/artifacts/:id/:version.html</code> for instant static streaming.
+              </div>
+            </div>
+
+            <div class="flow-step-card">
+              <div class="flow-step-header">
+                <span class="step-number">Step 04</span>
+                <span class="pill pill-green">Render</span>
+              </div>
+              <div class="step-title">Global Public Viewer</div>
+              <div class="step-desc">
+                Anyone globally opens <code>https://artifacts.domain.com/a/:id</code>. Secure sandboxed iframe loads HTML with version switcher and responsive preview modes.
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">Core Technical Stack Recommendation</h3>
+        <ul style="margin-left: 20px; font-size: 14px; color: var(--text-secondary); line-height: 1.8;">
+          <li><strong>Runtime:</strong> Node.js (v20+ LTS) using lightweight ES Modules.</li>
+          <li><strong>Web Framework:</strong> Express.js or Hono for Node &mdash; fast, zero boilerplate, effortless file streaming.</li>
+          <li><strong>Process Daemon:</strong> PM2 with automatic restart, log rotation, and systemd boot survival.</li>
+          <li><strong>Network Gateway:</strong> Cloudflare Tunnel (or Nginx reverse proxy on Home Server) exposing port <code>3008</code> securely to the internet with free SSL.</li>
+          <li><strong>Frontend:</strong> Pure Vanilla HTML/CSS/JS (zero build step, instant load, embedded directly in Node static routes).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- TAB 2: STORAGE & DATABASE CHOICE -->
+    <section id="tab-storage" class="tab-content">
+      <div class="card">
+        <h2 class="section-title">Storage Architecture Comparison</h2>
+        <p class="section-desc">Comparing Pure MongoDB, Pure Filesystem, and Hybrid Storage models.</p>
+
+        <div class="comparison-table-wrapper">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Storage Strategy</th>
+                <th>Performance & Serving</th>
+                <th>Backup & Portability</th>
+                <th>Versioning & Metadata Querying</th>
+                <th>Recommendation</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="highlight-row">
+                <td>
+                  <strong>⭐ Hybrid (Recommended)</strong><br>
+                  <small style="color:var(--text-muted)">MongoDB for metadata, local disk for HTML</small>
+                </td>
+                <td>
+                  <span class="pill pill-green">Fastest</span><br>
+                  Node streams file directly via <code>fs.createReadStream</code> with ETag & gzip.
+                </td>
+                <td>
+                  <span class="pill pill-green">High</span><br>
+                  Standard Mongo dump + artifacts directory sync (rsync/git).
+                </td>
+                <td>
+                  <span class="pill pill-green">Superior</span><br>
+                  MongoDB indexes versions, created timestamps, sizes, and slugs instantly.
+                </td>
+                <td>
+                  <strong>Best of Both Worlds</strong> (Maximum speed + rich queries)
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Option A: Pure MongoDB</strong><br>
+                  <small style="color:var(--text-muted)">HTML stored in BSON string / GridFS</small>
+                </td>
+                <td>
+                  <span class="pill pill-yellow">Moderate</span><br>
+                  Must fetch full document from Mongo over TCP socket before streaming.
+                </td>
+                <td>
+                  <span class="pill pill-green">Single Dump</span><br>
+                  Everything inside MongoDB database.
+                </td>
+                <td>
+                  <span class="pill pill-green">Good</span><br>
+                  Native BSON document queries.
+                </td>
+                <td>
+                  Good, but unnecessary database memory overhead for large HTML files (e.g. 5MB).
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Option B: Pure Local Filesystem</strong><br>
+                  <small style="color:var(--text-muted)">JSON manifest files + HTML on disk</small>
+                </td>
+                <td>
+                  <span class="pill pill-green">Fast</span><br>
+                  Zero database overhead.
+                </td>
+                <td>
+                  <span class="pill pill-green">Simple</span><br>
+                  Just copy folder.
+                </td>
+                <td>
+                  <span class="pill pill-yellow">Limited</span><br>
+                  Searching, listing artifacts requires scanning JSON files on disk.
+                </td>
+                <td>
+                  Great for simple setups, but lacks easy queries & aggregation that Mongo gives.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="background: var(--accent-subtle); border: 1px solid var(--accent-border); border-radius: var(--radius-md); padding: 16px; margin-top: 16px;">
+          <h4 style="color: var(--accent); font-size: 14px; font-weight: 700; margin-bottom: 4px;">Selected Strategy: Hybrid Storage Engine</h4>
+          <p style="font-size: 13px; color: var(--text-secondary);">
+            We use your existing <strong>MongoDB 7</strong> running on the home server (at <code>mongodb://127.0.0.1:27017/artifacts_db</code> or your Docker container) to store artifact IDs, slug references, version lists, metadata, and timestamps. The raw HTML contents are written to <code>./data/artifacts/:id/:version.html</code>. If MongoDB is temporarily down, the system can even fall back to disk reads!
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: SECURITY & SANDBOXING -->
+    <section id="tab-security" class="tab-content">
+      <div class="card">
+        <h2 class="section-title">Security & Sandboxing Architecture</h2>
+        <p class="section-desc">How to safely render arbitrary user HTML without risking server or host integrity.</p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px;">
+
+          <div style="background: var(--bg-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 18px;">
+            <div style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">1. Timing-Safe Token Authorization</div>
+            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+              Upload & deletion endpoints verify <code>ARTIFACT_ACCESS_TOKEN</code> using SHA-256 pre-hashed buffers with <code>crypto.timingSafeEqual()</code> to prevent length-oracle and timing attacks.
+            </p>
+          </div>
+
+          <div style="background: var(--bg-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 18px;">
+            <div style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">2. Zero-Trust Opaque Sandbox on /raw</div>
+            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+              <code>/raw/:uuid/:version</code> sends <code>Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups allow-modals;</code> giving the document an opaque/null origin so it can NEVER access parent cookies or tokens.
+            </p>
+          </div>
+
+          <div style="background: var(--bg-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 18px;">
+            <div style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">3. Strict Path & XSS Sanitization</div>
+            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+              Strict UUID-4 regex validation and integer version casting. All titles and descriptions are HTML-escaped before injection into viewer templates and OpenGraph tags.
+            </p>
+          </div>
+
+        </div>
+
+        <div class="code-block">
+<span class="comment">// Hardened Timing-Safe Auth Middleware</span>
+<span class="keyword">import</span> crypto <span class="keyword">from</span> <span class="string">'crypto'</span>;
+
+<span class="keyword">export const</span> authGuard = (req, res, next) => {
+  <span class="keyword">const</span> token = req.headers[<span class="string">'x-access-token'</span>] || req.headers[<span class="string">'authorization'</span>]?.replace(<span class="string">'Bearer '</span>, <span class="string">''</span>);
+  <span class="keyword">const</span> secret = process.env.<span class="endpoint">ARTIFACT_ACCESS_TOKEN</span>;
+
+  <span class="keyword">if</span> (!token || !secret) {
+    <span class="keyword">return</span> res.status(401).json({ error: { code: <span class="string">'UNAUTHORIZED'</span>, message: <span class="string">'Invalid access token.'</span> } });
+  }
+
+  <span class="keyword">const</span> hashA = crypto.createHash(<span class="string">'sha256'</span>).update(String(token)).digest();
+  <span class="keyword">const</span> hashB = crypto.createHash(<span class="string">'sha256'</span>).update(String(secret)).digest();
+
+  <span class="keyword">if</span> (!crypto.timingSafeEqual(hashA, hashB)) {
+    <span class="keyword">return</span> res.status(401).json({ error: { code: <span class="string">'UNAUTHORIZED'</span>, message: <span class="string">'Invalid access token.'</span> } });
+  }
+  next();
+};
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: API & DATA SCHEMA -->
+    <section id="tab-api" class="tab-content">
+      <div class="card">
+        <h2 class="section-title">REST API & MongoDB Schema</h2>
+        <p class="section-desc">Ultra-clean, CLI & cURL friendly endpoints.</p>
+
+        <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">API Endpoints</h3>
+
+        <div class="code-block">
+<span class="comment"># 1. Publish / Upload Artifact (Auth Required)</span>
+<span class="keyword">POST</span> <span class="endpoint">/api/artifacts</span>
+<span class="keyword">Headers:</span> { "Authorization": "Bearer $TOKEN", "Content-Type": "multipart/form-data" }
+<span class="keyword">Body:</span> file (HTML), title (optional), description (optional), id (optional UUID-4 to update)
+<span class="keyword">Response:</span> { "id": "a81c2d94-3450-48e2-b13c-0e241764df8a", "version": 1, "url": "https://artifacts.example.com/a/a81c2d94-3450-48e2-b13c-0e241764df8a", "rawUrl": "https://artifacts.example.com/raw/a81c2d94-3450-48e2-b13c-0e241764df8a/1" }
+
+<span class="comment"># 2. Get Artifact Metadata (Public)</span>
+<span class="keyword">GET</span> <span class="endpoint">/api/artifacts/:uuid</span>
+<span class="keyword">Response:</span> { "id": "a81c2d94-3450-48e2-b13c-0e241764df8a", "title": "Sales Dashboard", "latestVersion": 2, "versions": [...] }
+
+<span class="comment"># 3. Emergency Takedown / Delete (Auth Required)</span>
+<span class="keyword">DELETE</span> <span class="endpoint">/api/artifacts/:uuid</span>
+<span class="keyword">Response:</span> { "success": true, "message": "Artifact deleted" }
+
+<span class="comment"># 4. View Artifact Page with Viewer UI (Public)</span>
+<span class="keyword">GET</span> <span class="endpoint">/a/:uuid</span>             <span class="comment"># Shows latest version</span>
+<span class="keyword">GET</span> <span class="endpoint">/a/:uuid/v/:version</span>  <span class="comment"># Shows specific version</span>
+
+<span class="comment"># 5. Get Raw Sandboxed HTML (Public)</span>
+<span class="keyword">GET</span> <span class="endpoint">/raw/:uuid</span>           <span class="comment"># 302 Redirect to latest version</span>
+<span class="keyword">GET</span> <span class="endpoint">/raw/:uuid/:version</span>  <span class="comment"># Serves sandboxed HTML file</span>
+        </div>
+
+        <h3 style="font-size: 15px; font-weight: 700; margin: 20px 0 8px 0;">MongoDB Mongoose Schema (UUID-4 Primary Key)</h3>
+        <div class="code-block">
+<span class="keyword">const</span> ArtifactSchema = <span class="keyword">new</span> Schema({
+  _id: { type: String, required: true }, <span class="comment">// UUID-4 string e.g. "a81c2d94-3450-48e2-b13c-0e241764df8a"</span>
+  title: { type: String, default: <span class="string">'Untitled Artifact'</span> },
+  description: { type: String },
+  latestVersion: { type: Number, default: 1 },
+  versions: [{
+    versionNumber: { type: Number, required: true },
+    filePath: { type: String, required: true }, <span class="comment">// e.g. "artifacts/a81c2d94-.../v1.html"</span>
+    fileSize: { type: Number },
+    contentHash: { type: String },
+    createdAt: { type: Date, default: Date.now },
+  }],
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: UI & VIEWER EXPERIENCE -->
+    <section id="tab-ui" class="tab-content">
+      <div class="card">
+        <h2 class="section-title">Minimalist UI & Viewer Design</h2>
+        <p class="section-desc">Interactive live mockup of the upload portal and viewer interface.</p>
+
+        <!-- Mockup: Minimal Upload Form -->
+        <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">1. Upload Portal (With Title, Description & Token)</h3>
+        <div class="mockup-container">
+          <div class="mockup-header">
+            <div class="window-dots">
+              <div class="dot dot-red"></div>
+              <div class="dot dot-yellow"></div>
+              <div class="dot dot-green"></div>
+            </div>
+            <div class="mockup-url-bar">https://artifacts.home.vinitk.com/upload</div>
+            <div style="font-size: 11px; color: var(--text-muted);">OpenArtifacts</div>
+          </div>
+          <div class="mockup-body" style="gap: 12px; max-width: 600px; margin: 0 auto; width: 100%;">
+            <div class="upload-dropzone" style="padding: 24px 16px;">
+              <svg class="upload-icon-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:36px; height:36px; margin-bottom:6px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+              </svg>
+              <div style="font-size: 14px; font-weight: 700; color: var(--text-primary);">Click or Drag & Drop HTML file</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Self-contained HTML with inlined CSS, JS & Canvas</div>
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 4px;">Artifact Title *</label>
+              <input type="text" class="mock-input" style="width: 100%;" placeholder="e.g. Q3 Sales & Revenue Analytics" value="Q3 Sales & Revenue Analytics">
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 4px;">Description / Changelog Note</label>
+              <input type="text" class="mock-input" style="width: 100%;" placeholder="e.g. Added dark mode toggle and real-time filters" value="Interactive dashboard with regional breakdown & charts">
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+              <div style="flex: 1;">
+                <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 4px;">Access Token</label>
+                <input type="password" class="mock-input" style="width: 100%;" placeholder="Enter ARTIFACT_ACCESS_TOKEN" value="••••••••••••••••">
+              </div>
+              <div style="display: flex; align-items: flex-end;">
+                <button class="mock-btn" style="height: 38px;">
+                  <span>🚀 Publish Artifact</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mockup: Artifact Viewer -->
+        <h3 style="font-size: 15px; font-weight: 700; margin: 28px 0 8px 0;">2. Global Artifact Viewer (Top Name, Description & Version Dropdown)</h3>
+        <div class="mockup-container">
+          <div class="viewer-navbar" style="padding: 12px 16px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-weight: 800; font-size: 15px;">📊 Q3 Sales & Revenue Analytics</span>
+                <select class="version-select" style="padding: 4px 10px; font-size: 12px;">
+                  <option selected>Version 3 (Latest &bull; 2 mins ago)</option>
+                  <option>Version 2 (Yesterday &bull; Added filters)</option>
+                  <option>Version 1 (Initial Release)</option>
+                </select>
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted);">
+                Interactive dashboard with regional breakdown & charts &bull; <span style="color: var(--success); font-weight: 600;">v3 Active</span>
+              </div>
+            </div>
+
+            <div class="viewer-controls">
+              <div class="device-toggles">
+                <button class="dev-btn active">💻 Desktop</button>
+                <button class="dev-btn">📱 Mobile</button>
+                <button class="dev-btn">📲 Tablet</button>
+                <button class="dev-btn">⛶ Full</button>
+              </div>
+              <button class="mock-btn" style="padding: 6px 12px; font-size: 12px;">🔗 Copy URL</button>
+              <button class="theme-toggle-btn" style="padding: 4px 8px; font-size: 11px;">📑 Raw</button>
+            </div>
+          </div>
+
+          <div style="background: #ffffff; padding: 36px; text-align: center; border-top: 1px solid var(--border-subtle); color: #334155; min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">[ Sandboxed Interactive Artifact Content Renders Here ]</div>
+            <div style="font-size: 13px; color: #64748b; max-width: 540px;">Default version loaded: <strong>v3 (Latest)</strong>. Selecting earlier versions updates the sandboxed iframe instantly without page reload.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: HOME SERVER & PM2 DEPLOYMENT -->
+    <section id="tab-deployment" class="tab-content">
+      <div class="card">
+        <h2 class="section-title">Home Server & PM2 Deployment Blueprint</h2>
+        <p class="section-desc">Simple, rock-solid production setup on your home server.</p>
+
+        <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">1. Environment Configuration (<code>.env</code>)</h3>
+        <div class="code-block">
+<span class="comment"># Server Settings</span>
+PORT=<span class="endpoint">3008</span>
+NODE_ENV=<span class="string">production</span>
+BASE_URL=<span class="string">https://artifacts.vinitk.com</span>
+
+<span class="comment"># Security Token for Uploads</span>
+ARTIFACT_ACCESS_TOKEN=<span class="string">vinitk_art_sec_99482710394817</span>
+
+<span class="comment"># Storage & Database</span>
+MONGO_URI=<span class="string">mongodb://127.0.0.1:27017/artifacts_db</span>
+STORAGE_PATH=<span class="string">./data/artifacts</span>
+MAX_FILE_SIZE_MB=<span class="string">25</span>
+        </div>
+
+        <h3 style="font-size: 15px; font-weight: 700; margin: 20px 0 8px 0;">2. PM2 Ecosystem File (<code>ecosystem.config.js</code>)</h3>
+        <div class="code-block">
+module.exports = {
+  apps: [{
+    name: <span class="string">'artifacts-service'</span>,
+    script: <span class="string">'src/server.js'</span>,
+    instances: 1,
+    autorestart: <span class="keyword">true</span>,
+    watch: <span class="keyword">false</span>,
+    max_memory_restart: <span class="string">'500M'</span>,
+    env: {
+      NODE_ENV: <span class="string">'production'</span>,
+      PORT: 3008
+    }
+  }]
+};
+        </div>
+
+        <h3 style="font-size: 15px; font-weight: 700; margin: 20px 0 8px 0;">3. Quick 1-Command CLI Uploader Function</h3>
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Add this to your <code>~/.zshrc</code> on your Mac or server to upload any HTML file with a single command:</p>
+        <div class="code-block">
+<span class="comment"># Add to ~/.zshrc or ~/.bashrc</span>
+<span class="fn">pubart</span>() {
+  <span class="keyword">local</span> file=<span class="string">"$1"</span>
+  <span class="keyword">local</span> token=<span class="string">"$ARTIFACT_ACCESS_TOKEN"</span>
+  curl -s -X POST https://artifacts.vinitk.com/api/artifacts \
+    -H <span class="string">"Authorization: Bearer $token"</span> \
+    -F <span class="string">"file=@$file"</span> | jq -r <span class="string">'.url'</span>
+}
+<span class="comment"># Usage: pubart report.html -> https://artifacts.vinitk.com/a/x8y2q</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 7: IMPLEMENTATION STEPS -->
+    <section id="tab-roadmap" class="tab-content">
+      <div class="card">
+        <h2 class="section-title">Implementation Milestones & Execution Plan</h2>
+        <p class="section-desc">Clear, step-by-step roadmap to build and deploy.</p>
+
+        <div class="roadmap-list">
+
+          <div class="roadmap-item">
+            <div class="roadmap-badge">1</div>
+            <div class="roadmap-card">
+              <h4>Project Skeleton & Backend Foundation</h4>
+              <ul>
+                <li>Initialize Node.js ESM project (<code>package.json</code>, Express, Mongoose, Multer, Nanoid, dotenv).</li>
+                <li>Setup directory structure: <code>src/</code>, <code>public/</code>, <code>data/artifacts/</code>.</li>
+                <li>Configure Mongoose connection to Home Server MongoDB and <code>.env</code> handling.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="roadmap-item">
+            <div class="roadmap-badge">2</div>
+            <div class="roadmap-card">
+              <h4>Core Storage Engine & Versioning Logic</h4>
+              <ul>
+                <li>Implement file upload handler via Multer with validation (HTML extension check, size limits).</li>
+                <li>Auto-extract <code>&lt;title&gt;</code> from HTML for metadata.</li>
+                <li>Atomic version incrementing (v1 &rarr; v2 &rarr; v3) if existing artifact slug/ID is provided.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="roadmap-item">
+            <div class="roadmap-badge">3</div>
+            <div class="roadmap-card">
+              <h4>API Endpoints & Access Token Guard</h4>
+              <ul>
+                <li><code>POST /api/artifacts</code> (Upload & Versioning with Token auth).</li>
+                <li><code>GET /raw/:id/:version</code> (Raw sandboxed HTML streamer).</li>
+                <li><code>GET /api/artifacts/:id</code> (Metadata & version history).</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="roadmap-item">
+            <div class="roadmap-badge">4</div>
+            <div class="roadmap-card">
+              <h4>Minimal Web Upload UI & Global Viewer UI</h4>
+              <ul>
+                <li>Drag & Drop web upload portal with token localStorage memory.</li>
+                <li>Clean viewer UI with Version switcher, responsive device toggles (Desktop/Mobile), and sandboxed iframe.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="roadmap-item">
+            <div class="roadmap-badge">5</div>
+            <div class="roadmap-card">
+              <h4>Home Server Deployment & PM2 Setup</h4>
+              <ul>
+                <li>Setup <code>ecosystem.config.js</code> for PM2.</li>
+                <li>Configure Cloudflare Tunnel / Reverse Proxy for public HTTPS domain.</li>
+                <li>Test global end-to-end access from mobile and desktop.</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom Action Card -->
+    <div class="action-callout">
+      <div>
+        <h3>Ready to build the Artifacts Platform?</h3>
+        <p>The architecture is streamlined, completely feasible, secure, and ready for immediate implementation in this directory.</p>
+      </div>
+      <button class="start-btn" onclick="alert('Feasibility study complete! You can now review this in browser and approve implementation.')">Plan Approved &bull; Ready to Build</button>
+    </div>
+
+  </main>
+
+  <script>
+    function initTheme() {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+      }
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+      const selectedBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+      if (selectedBtn) selectedBtn.classList.add('active');
+
+      const target = document.getElementById('tab-' + tabId);
+      if (target) target.classList.add('active');
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme') ||
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', nextTheme);
+      localStorage.setItem('theme', nextTheme);
+    }
+
+    initTheme();
+  </script>
+</body>
+</html>
