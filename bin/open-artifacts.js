@@ -2,7 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import os from 'os';
 
 const args = process.argv.slice(2);
 
@@ -39,8 +39,25 @@ if (!filePath || !fs.existsSync(filePath)) {
 let title = '';
 let description = '';
 let id = '';
-let serverUrl = process.env.OPEN_ARTIFACTS_URL || process.env.BASE_URL || 'http://localhost:3008';
+let serverUrl = process.env.OPEN_ARTIFACTS_URL || process.env.BASE_URL || '';
 let token = process.env.ARTIFACT_ACCESS_TOKEN || process.env.OPEN_ARTIFACTS_TOKEN || '';
+
+// 1. Check ~/.claude/open-artifacts.json if env vars not set
+if (!serverUrl || !token) {
+  const configPath = path.join(os.homedir(), '.claude', 'open-artifacts.json');
+  if (fs.existsSync(configPath)) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (!serverUrl && cfg.url) serverUrl = cfg.url;
+      if (!token && cfg.token) token = cfg.token;
+    } catch {
+      // Ignore JSON parse errors
+    }
+  }
+}
+
+// 2. Default fallback
+if (!serverUrl) serverUrl = 'http://localhost:3008';
 
 for (let i = 1; i < args.length; i++) {
   if (args[i] === '--title' && args[i + 1]) {

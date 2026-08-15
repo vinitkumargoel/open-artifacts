@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { config } from '../config/env.js';
 
 let isConnected = false;
+let reconnectTimer = null;
 
 export async function connectDB() {
   if (isConnected || mongoose.connection.readyState === 1) {
@@ -15,18 +16,38 @@ export async function connectDB() {
       connectTimeoutMS: 10000
     });
     isConnected = true;
+
+    if (reconnectTimer) {
+      clearInterval(reconnectTimer);
+      reconnectTimer = null;
+    }
+
     if (config.nodeEnv !== 'test') {
       console.log(`[OpenArtifacts] Connected to MongoDB at ${config.mongoUri}`);
     }
     return conn;
   } catch (err) {
     isConnected = false;
-    console.error(`[OpenArtifacts] Warning: MongoDB connection failed (${err.message}). Disk fallback will be used if configured.`);
+    if (config.nodeEnv !== 'test') {
+      console.error(`[OpenArtifacts] Warning: MongoDB connection failed (${err.message}). Disk fallback will be used.`);
+
+      // Schedule background reconnect retry
+      if (!reconnectTimer) {
+        reconnectTimer = setInterval(() => {
+          connectDB().catch(() => {});
+        }, 15000);
+        reconnectTimer.unref();
+      }
+    }
     return null;
   }
 }
 
 export async function disconnectDB() {
+  if (reconnectTimer) {
+    clearInterval(reconnectTimer);
+    reconnectTimer = null;
+  }
   if (isConnected || mongoose.connection.readyState !== 0) {
     await mongoose.disconnect();
     isConnected = false;

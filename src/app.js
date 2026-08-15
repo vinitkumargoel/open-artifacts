@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
+import { config } from './config/env.js';
 import apiRoutes from './routes/api.js';
 import rawRoutes from './routes/raw.js';
 import viewerRoutes from './routes/viewer.js';
@@ -27,7 +28,7 @@ export function createApp() {
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
   // Static files (favicon, public assets)
-  app.use(express.static(path.resolve(process.cwd(), 'public')));
+  app.use(express.static(path.resolve(config.projectRoot, 'public')));
 
   // Health check endpoint
   app.get('/healthz', (req, res) => {

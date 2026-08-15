@@ -1,6 +1,6 @@
 import express from 'express';
 import { authGuard } from '../middleware/auth.js';
-import { uploadLimiter } from '../middleware/rateLimit.js';
+import { uploadLimiter, readLimiter } from '../middleware/rateLimit.js';
 import { uploadMiddleware, processArtifactUpload, getArtifactMetadata, deleteArtifact } from '../services/storage.js';
 import { isValidUuid4 } from '../utils/sanitize.js';
 import { config } from '../config/env.js';
@@ -61,7 +61,7 @@ router.post('/artifacts', uploadLimiter, authGuard, (req, res, next) => {
  * GET /api/artifacts/:uuid
  * Public metadata lookup for an artifact and its version list.
  */
-router.get('/artifacts/:uuid', async (req, res, next) => {
+router.get('/artifacts/:uuid', readLimiter, async (req, res, next) => {
   try {
     const { uuid } = req.params;
 

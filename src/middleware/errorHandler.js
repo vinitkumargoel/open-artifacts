@@ -2,6 +2,10 @@ import multer from 'multer';
 import { config } from '../config/env.js';
 
 export function errorHandler(err, req, res, next) {
+  if (res.headersSent) {
+    return next(err);
+  }
+
   // Handle Multer errors
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {

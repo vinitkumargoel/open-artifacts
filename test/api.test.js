@@ -46,6 +46,26 @@ describe('OpenArtifacts End-to-End API Test Suite', () => {
     expect(res.body.error.code).toBe('INVALID_FILE_TYPE');
   });
 
+  it('POST /api/artifacts rejects 0-byte empty files (400)', async () => {
+    const res = await request(app)
+      .post('/api/artifacts')
+      .set('x-access-token', AUTH_TOKEN)
+      .attach('file', Buffer.from(''), 'empty.html');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_FILE_TYPE');
+  });
+
+  it('POST /api/artifacts accepts auth via x-auth-token header (201)', async () => {
+    const res = await request(app)
+      .post('/api/artifacts')
+      .set('x-auth-token', AUTH_TOKEN)
+      .field('title', 'Header Auth Test')
+      .attach('file', Buffer.from('<html><head><title>Header Auth</title></head><body>OK</body></html>'), 'auth_test.html');
+
+    expect(res.status).toBe(201);
+  });
+
   it('POST /api/artifacts publishes a new HTML artifact (201)', async () => {
     const sampleHtml = `<!DOCTYPE html>
     <html>

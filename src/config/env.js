@@ -1,13 +1,18 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+export const PROJECT_ROOT = path.resolve(__dirname, '../../');
 
-const ROOT_DIR = process.cwd();
+// Load .env from project root if present
+dotenv.config({ path: path.join(PROJECT_ROOT, '.env') });
+
 const STORAGE_PATH = process.env.STORAGE_PATH
-  ? path.resolve(ROOT_DIR, process.env.STORAGE_PATH)
-  : path.resolve(ROOT_DIR, 'data/artifacts');
+  ? path.resolve(PROJECT_ROOT, process.env.STORAGE_PATH)
+  : path.resolve(PROJECT_ROOT, 'data/artifacts');
 
 // Ensure storage directories exist
 if (!fs.existsSync(STORAGE_PATH)) {
@@ -20,6 +25,7 @@ if (!fs.existsSync(TMP_PATH)) {
 }
 
 export const config = {
+  projectRoot: PROJECT_ROOT,
   port: parseInt(process.env.PORT || '3008', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   baseUrl: (process.env.BASE_URL || `http://localhost:${process.env.PORT || '3008'}`).replace(/\/+$/, ''),

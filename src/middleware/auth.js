@@ -21,6 +21,8 @@ export function verifyToken(providedToken, secretToken) {
 
 /**
  * Express middleware to guard publishing, updating, and deleting routes.
+ * Strictly reads from Authorization and x-access-token / x-auth-token headers
+ * to prevent token leakage in web server access logs and browser history.
  */
 export function authGuard(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -33,11 +35,6 @@ export function authGuard(req, res, next) {
     } else {
       token = authHeader.trim();
     }
-  }
-
-  // Also check query param ?token= (for emergency CLI or authorized downloads if passed)
-  if (!token && req.query && typeof req.query.token === 'string') {
-    token = req.query.token;
   }
 
   const configuredSecret = config.accessToken;

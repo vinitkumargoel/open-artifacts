@@ -39,6 +39,16 @@ curl -s -X POST "http://localhost:3008/api/artifacts" \
   -F "title=Q3 Sales Analytics" \
   -F "description=Interactive revenue charts"
 
+# Response (JSON):
+# {
+#   "id": "a81c2d94-3450-48e2-b13c-0e241764df8a",
+#   "version": 1,
+#   "title": "Q3 Sales Analytics",
+#   "description": "Interactive revenue charts",
+#   "url": "http://localhost:3008/a/a81c2d94-3450-48e2-b13c-0e241764df8a",
+#   "rawUrl": "http://localhost:3008/raw/a81c2d94-3450-48e2-b13c-0e241764df8a/1"
+# }
+
 # 2. Publish an Update / New Version (v2)
 curl -s -X POST "http://localhost:3008/api/artifacts" \
   -H "Authorization: Bearer $ARTIFACT_ACCESS_TOKEN" \
@@ -46,3 +56,28 @@ curl -s -X POST "http://localhost:3008/api/artifacts" \
   -F "id=a81c2d94-3450-48e2-b13c-0e241764df8a" \
   -F "description=Added currency switcher and dark theme"
 ```
+
+---
+
+## Token & Connection Discovery
+
+The skill locates configuration in the following order:
+1. Environment variables: `ARTIFACT_ACCESS_TOKEN` / `OPEN_ARTIFACTS_TOKEN` and `OPEN_ARTIFACTS_URL`.
+2. Local config file: `~/.claude/open-artifacts.json` containing:
+   ```json
+   {
+     "url": "http://localhost:3008",
+     "token": "your_secret_access_token_here"
+   }
+   ```
+3. Project `.env` in the current working directory.
+
+---
+
+## Output Response Guidance
+
+When reporting back to the user after publishing:
+- State that the artifact has been published successfully.
+- Output the **Public Viewer Link** (e.g. `[View Artifact](https://artifacts.example.com/a/<uuid>)`).
+- Output the **Direct Raw Link** (e.g. `https://artifacts.example.com/raw/<uuid>/<version>`).
+- Mention the assigned **UUID-4** and **Version Number** so they can easily publish subsequent iterations with `--id <uuid>`.

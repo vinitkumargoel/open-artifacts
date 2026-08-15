@@ -40,6 +40,7 @@ export function parsePositiveInt(val) {
 
 /**
  * Extracts <title>...</title> or first <h1> from HTML content.
+ * Caps parsing window to the first 64KB to avoid ReDoS / CPU spikes on large files.
  * @param {string} htmlContent
  * @param {number} maxLength
  * @returns {string}
@@ -47,8 +48,10 @@ export function parsePositiveInt(val) {
 export function extractTitleFromHtml(htmlContent, maxLength = 120) {
   if (!htmlContent || typeof htmlContent !== 'string') return 'Untitled Artifact';
 
+  const windowSlice = htmlContent.slice(0, 65536);
+
   // Try extracting from <title> tag
-  const titleMatch = htmlContent.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const titleMatch = windowSlice.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   if (titleMatch && titleMatch[1]) {
     const cleanTitle = titleMatch[1].replace(/<[^>]+>/g, '').trim();
     if (cleanTitle.length > 0) {
@@ -57,7 +60,7 @@ export function extractTitleFromHtml(htmlContent, maxLength = 120) {
   }
 
   // Fallback to first <h1>
-  const h1Match = htmlContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  const h1Match = windowSlice.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
   if (h1Match && h1Match[1]) {
     const cleanH1 = h1Match[1].replace(/<[^>]+>/g, '').trim();
     if (cleanH1.length > 0) {
@@ -70,6 +73,7 @@ export function extractTitleFromHtml(htmlContent, maxLength = 120) {
 
 /**
  * Extracts meta description from HTML content.
+ * Caps parsing window to the first 64KB to avoid ReDoS / CPU spikes on large files.
  * @param {string} htmlContent
  * @param {number} maxLength
  * @returns {string}
@@ -77,8 +81,10 @@ export function extractTitleFromHtml(htmlContent, maxLength = 120) {
 export function extractDescriptionFromHtml(htmlContent, maxLength = 500) {
   if (!htmlContent || typeof htmlContent !== 'string') return '';
 
-  const metaMatch = htmlContent.match(/<meta\s+name=["']description["']\s+content=["']([\s\S]*?)["'][^>]*>/i) ||
-                    htmlContent.match(/<meta\s+content=["']([\s\S]*?)["']\s+name=["']description["'][^>]*>/i);
+  const windowSlice = htmlContent.slice(0, 65536);
+
+  const metaMatch = windowSlice.match(/<meta\s+name=["']description["']\s+content=["']([\s\S]*?)["'][^>]*>/i) ||
+                    windowSlice.match(/<meta\s+content=["']([\s\S]*?)["']\s+name=["']description["'][^>]*>/i);
 
   if (metaMatch && metaMatch[1]) {
     const cleanDesc = metaMatch[1].trim();
