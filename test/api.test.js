@@ -182,7 +182,7 @@ describe('OpenArtifacts End-to-End API Test Suite', () => {
   it('GET /upload serves minimal upload portal', async () => {
     const res = await request(app).get('/upload');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('OpenArtifacts Publisher');
+    expect(res.text).toContain('Studio Publisher');
     expect(res.text).toContain('dropzone');
   });
 
