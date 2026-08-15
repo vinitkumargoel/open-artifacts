@@ -17,11 +17,14 @@ export function createApp() {
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS']
   }));
 
-  // Helmet with permissive framing for embeddable content while securing API
+  // Helmet with custom frame options & opener policy disabled
+  // so that sandboxed iframes can render seamlessly across Safari, iOS, Chrome, and Firefox
   app.use(helmet({
-    contentSecurityPolicy: false, // We manage custom granular CSP on viewer & raw routes
+    contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: { policy: 'cross-origin' }
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginOpenerPolicy: false,
+    xFrameOptions: false
   }));
 
   app.use(express.json({ limit: '2mb' }));

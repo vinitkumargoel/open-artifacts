@@ -329,7 +329,7 @@ export function renderViewerHtml({ artifact, currentVersion }) {
       id="artifactFrame"
       class="viewport-frame"
       src="${rawUrl}"
-      sandbox="allow-scripts allow-forms allow-popups allow-modals"
+      sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"
       loading="eager"
       title="${title}">
     </iframe>
