@@ -11,6 +11,11 @@ import errorHandler from './middleware/errorHandler.js';
 export function createApp() {
   const app = express();
 
+  // The service runs behind a Cloudflare Tunnel, so every request arrives from
+  // the tunnel rather than the visitor. Without this, req.ip is the tunnel for
+  // everyone and the read limiter buckets the whole internet together.
+  app.set('trust proxy', config.trustProxy);
+
   // Basic security & parsing
   app.use(cors({
     origin: '*',

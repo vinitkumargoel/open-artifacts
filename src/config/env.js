@@ -35,7 +35,11 @@ export const config = {
   tmpPath: TMP_PATH,
   maxFileSizeMb: parseInt(process.env.MAX_FILE_SIZE_MB || '25', 10),
   uploadRateLimitPerMin: parseInt(process.env.UPLOAD_RATE_LIMIT_PER_MIN || '30', 10),
-  readRateLimitPerMin: parseInt(process.env.READ_RATE_LIMIT_PER_MIN || '120', 10)
+  readRateLimitPerMin: parseInt(process.env.READ_RATE_LIMIT_PER_MIN || '500', 10),
+  // Which upstream hops may set X-Forwarded-For / CF-Connecting-IP. In production
+  // the service is fronted by a Cloudflare Tunnel that reaches Express over
+  // loopback or the Docker bridge, so private hops are trusted by default.
+  trustProxy: process.env.TRUST_PROXY || 'loopback, linklocal, uniquelocal'
 };
 
 export default config;
