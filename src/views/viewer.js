@@ -33,6 +33,7 @@ export function renderViewerHtml({ artifact, currentVersion }) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="${description || title}">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <!-- OpenGraph & Social Cards -->
   <meta property="og:title" content="${title} &bull; OpenArtifacts">
   <meta property="og:description" content="${description || 'Interactive standalone HTML artifact.'}">
@@ -44,19 +45,21 @@ export function renderViewerHtml({ artifact, currentVersion }) {
   <title>${title} &bull; OpenArtifacts</title>
   <style>
     :root {
-      --bg-chrome: #0f172a;
-      --bg-surface: #1e293b;
-      --bg-subtle: #334155;
-      --bg-active: #475569;
-      --border-color: #334155;
-      --text-primary: #f8fafc;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
-      --accent: #3b82f6;
-      --accent-hover: #60a5fa;
-      --success: #10b981;
-      --canvas-bg: #e2e8f0;
-      --radius: 8px;
+      --bg: #fbfbfb;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f4f4f5;
+      --bg-stage: #f4f4f5;
+      --border: #e4e4e7;
+      --text-primary: #18181b;
+      --text-secondary: #52525b;
+      --text-tertiary: #a1a1aa;
+      --accent: #18181b;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-frame: 0 4px 20px -2px rgba(0,0,0,0.08);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -65,18 +68,20 @@ export function renderViewerHtml({ artifact, currentVersion }) {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
-      background: var(--bg-chrome);
+      font-family: var(--font-sans);
+      background: var(--bg-surface);
       color: var(--text-primary);
       display: flex;
       flex-direction: column;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Top Navigation / Chrome Bar */
+    /* ============ Top Bar ============ */
     .viewer-header {
-      background: var(--bg-chrome);
-      border-bottom: 1px solid var(--border-color);
-      padding: 10px 18px;
+      height: 52px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -85,52 +90,70 @@ export function renderViewerHtml({ artifact, currentVersion }) {
       z-index: 20;
     }
 
-    .artifact-info {
+    .header-left {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       min-width: 0;
+      flex: 1;
     }
 
     .brand-mark {
-      width: 28px;
-      height: 28px;
-      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      width: 26px;
+      height: 26px;
+      background: #18181b;
+      color: #ffffff;
       border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
-      font-weight: 800;
-      font-size: 14px;
+      font-weight: 700;
+      font-size: 13px;
+      text-decoration: none;
+      flex-shrink: 0;
+      transition: transform 0.15s;
+    }
+    .brand-mark:hover { transform: scale(1.05); }
+
+    .brand-name {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
       text-decoration: none;
       flex-shrink: 0;
     }
+    .brand-name:hover { color: var(--text-secondary); }
 
-    .title-group {
-      min-width: 0;
+    .brand-sep {
+      color: var(--text-tertiary);
+      font-size: 13px;
+      flex-shrink: 0;
     }
 
     .artifact-title {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 320px;
-    }
-
-    .artifact-desc {
-      font-size: 11px;
+      font-size: 13.5px;
+      font-weight: 500;
       color: var(--text-secondary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 360px;
+      min-width: 0;
     }
 
-    /* Controls Bar */
+    .version-note {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 260px;
+      flex-shrink: 2;
+      border-left: 1px solid var(--border);
+      padding-left: 10px;
+    }
+
+    /* ============ Controls ============ */
     .viewer-controls {
       display: flex;
       align-items: center;
@@ -138,90 +161,118 @@ export function renderViewerHtml({ artifact, currentVersion }) {
       flex-shrink: 0;
     }
 
+    .viewer-controls svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
     .version-select {
+      height: 30px;
       background: var(--bg-surface);
-      border: 1px solid var(--border-color);
+      border: 1px solid var(--border);
       color: var(--text-primary);
-      padding: 5px 10px;
-      border-radius: var(--radius);
+      padding: 0 8px;
+      border-radius: var(--radius-sm);
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 500;
+      font-family: var(--font-sans);
       cursor: pointer;
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.15s;
+      max-width: 180px;
     }
     .version-select:hover, .version-select:focus {
-      border-color: var(--accent);
+      border-color: var(--text-secondary);
     }
 
     .viewport-group {
       display: flex;
-      background: var(--bg-surface);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
       padding: 2px;
       gap: 2px;
+      height: 30px;
     }
 
     .view-btn {
       background: transparent;
       border: none;
-      color: var(--text-muted);
-      padding: 4px 8px;
+      color: var(--text-secondary);
+      padding: 0 9px;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 11.5px;
+      font-weight: 500;
+      font-family: var(--font-sans);
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       transition: all 0.15s;
     }
     .view-btn:hover {
       color: var(--text-primary);
     }
     .view-btn.active {
-      background: var(--bg-subtle);
-      color: #fff;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-weight: 600;
+      box-shadow: var(--shadow-sm);
     }
 
-    .action-btn {
+    .control-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      height: 30px;
+      width: 30px;
       background: var(--bg-surface);
-      border: 1px solid var(--border-color);
+      border: 1px solid var(--border);
       color: var(--text-secondary);
-      padding: 5px 10px;
-      border-radius: var(--radius);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .icon-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+    }
+
+    .copy-btn {
+      height: 30px;
+      background: var(--accent);
+      color: #ffffff;
+      border: 1px solid var(--accent);
+      padding: 0 12px;
+      border-radius: var(--radius-sm);
       font-size: 12px;
       font-weight: 600;
+      font-family: var(--font-sans);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      text-decoration: none;
-      transition: all 0.2s;
+      transition: all 0.15s;
+      box-shadow: var(--shadow-sm);
     }
-    .action-btn:hover {
-      background: var(--bg-subtle);
-      color: var(--text-primary);
-      border-color: var(--accent);
+    .copy-btn:hover {
+      background: #27272a;
     }
 
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-    .btn-primary:hover {
-      background: var(--accent-hover);
-      color: #fff;
-    }
-
-    /* Main Sandbox Stage */
+    /* ============ Sandbox Stage ============ */
     .stage-container {
       flex: 1;
       position: relative;
-      background: #020617;
+      background: var(--bg-stage);
       display: flex;
       justify-content: center;
       align-items: center;
@@ -241,46 +292,61 @@ export function renderViewerHtml({ artifact, currentVersion }) {
       width: 768px;
       height: calc(100% - 32px);
       border-radius: 12px;
-      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-frame);
     }
 
     .stage-container.mode-mobile .viewport-frame {
       width: 375px;
       height: calc(100% - 32px);
       border-radius: 16px;
-      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-frame);
     }
 
-    /* Toast Notification */
+    /* ============ Toast ============ */
     .toast {
       position: fixed;
       bottom: 24px;
       left: 50%;
-      transform: translateX(-50%) translateY(100px);
-      background: #1e293b;
-      border: 1px solid var(--accent);
-      color: #fff;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
+      transform: translateX(-50%) translateY(10px);
+      background: #18181b;
+      color: #ffffff;
+      padding: 8px 14px;
+      border-radius: var(--radius-md);
+      font-size: 12.5px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       pointer-events: none;
       opacity: 0;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.2s ease;
       z-index: 999;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      max-width: min(90vw, 480px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .toast.show {
       transform: translateX(-50%) translateY(0);
       opacity: 1;
     }
 
-    @media (max-width: 800px) {
-      .artifact-desc { display: none; }
+    /* ============ Responsive ============ */
+    @media (max-width: 1000px) {
+      .version-note { display: none; }
+      .view-btn span { display: none; }
+      .view-btn { padding: 0 8px; }
+    }
+
+    @media (max-width: 840px) {
+      .brand-name, .brand-sep { display: none; }
       .viewport-group { display: none; }
+      .control-divider { display: none; }
+    }
+
+    @media (max-width: 600px) {
+      .copy-btn span { display: none; }
+      .copy-btn { width: 30px; padding: 0; justify-content: center; }
     }
   </style>
 </head>
@@ -288,17 +354,17 @@ export function renderViewerHtml({ artifact, currentVersion }) {
 
   <!-- Header Chrome -->
   <header class="viewer-header">
-    <div class="artifact-info">
-      <a href="/upload" class="brand-mark" title="Publish New Artifact">&lambda;</a>
-      <div class="title-group">
-        <div class="artifact-title" title="${title}">${title}</div>
-        <div class="artifact-desc" title="${description || versionNote}">${versionNote || description || 'OpenArtifacts Viewer'}</div>
-      </div>
+    <div class="header-left">
+      <a href="/upload" class="brand-mark" title="OpenArtifacts Studio">&lambda;</a>
+      <a href="/upload" class="brand-name">OpenArtifacts</a>
+      <span class="brand-sep">/</span>
+      <h1 class="artifact-title" title="${description || title}">${title}</h1>
+      ${versionNote ? `<span class="version-note" title="${versionNote}">${versionNote}</span>` : ''}
     </div>
 
     <div class="viewer-controls">
       <!-- Version Dropdown -->
-      <select class="version-select" id="versionSelect" onchange="changeVersion(this.value)" aria-label="Select Version">
+      <select class="version-select" id="versionSelect" onchange="changeVersion(this.value)" aria-label="Select version">
         ${versions.map(v => {
           const isLatest = v.versionNumber === latestVer;
           const isSelected = v.versionNumber === activeVer;
@@ -310,16 +376,34 @@ export function renderViewerHtml({ artifact, currentVersion }) {
       </select>
 
       <!-- Viewport Device Switcher -->
-      <div class="viewport-group" role="group" aria-label="Responsive Device Previews">
-        <button class="view-btn active" id="btn-desktop" onclick="setViewport('desktop')">💻 Desktop</button>
-        <button class="view-btn" id="btn-tablet" onclick="setViewport('tablet')">📲 Tablet</button>
-        <button class="view-btn" id="btn-mobile" onclick="setViewport('mobile')">📱 Mobile</button>
+      <div class="viewport-group" role="group" aria-label="Responsive device previews">
+        <button class="view-btn active" id="btn-desktop" onclick="setViewport('desktop')" title="Desktop preview">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"></rect><path stroke-linecap="round" d="M8 21h8m-4-4v4"></path></svg>
+          <span>Desktop</span>
+        </button>
+        <button class="view-btn" id="btn-tablet" onclick="setViewport('tablet')" title="Tablet preview">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"></rect><path stroke-linecap="round" d="M12 18h.01"></path></svg>
+          <span>Tablet</span>
+        </button>
+        <button class="view-btn" id="btn-mobile" onclick="setViewport('mobile')" title="Mobile preview">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"></rect><path stroke-linecap="round" d="M12 18h.01"></path></svg>
+          <span>Mobile</span>
+        </button>
       </div>
 
+      <span class="control-divider"></span>
+
       <!-- Action Buttons -->
-      <button class="action-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">⛶ Fullscreen</button>
-      <button class="action-btn btn-primary" onclick="copyShareUrl()" title="Copy Public URL">🔗 Copy Link</button>
-      <a href="${rawUrl}" target="_blank" rel="noopener noreferrer" class="action-btn" title="Open Raw Sandbox">📑 Raw</a>
+      <button class="icon-btn" onclick="toggleFullscreen()" title="Toggle fullscreen" aria-label="Toggle fullscreen">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"></path></svg>
+      </button>
+      <a href="${rawUrl}" target="_blank" rel="noopener noreferrer" class="icon-btn" title="Open raw HTML in new tab" aria-label="Open raw HTML in new tab">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 18l6-6-6-6M8 6l-6 6 6 6"></path></svg>
+      </a>
+      <button class="copy-btn" onclick="copyShareUrl()" title="Copy public link">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"></path></svg>
+        <span>Copy Link</span>
+      </button>
     </div>
   </header>
 
@@ -335,12 +419,15 @@ export function renderViewerHtml({ artifact, currentVersion }) {
     </iframe>
   </main>
 
-  <div class="toast" id="toast" role="alert">&check; Copied to clipboard!</div>
+  <div class="toast" id="toast" role="alert">Copied to clipboard</div>
 
   <script>
     const uuid = ${JSON.stringify(uuid)};
     let activeVersion = ${activeVer};
     let latestVersion = ${latestVer};
+
+    // Stamp the initial history entry so popstate can restore it later
+    window.history.replaceState({ version: activeVersion }, '', window.location.pathname);
 
     function changeVersion(newVer) {
       activeVersion = parseInt(newVer, 10);
@@ -350,7 +437,7 @@ export function renderViewerHtml({ artifact, currentVersion }) {
       // Update URL with history.pushState without full page reload
       const newPath = activeVersion === latestVersion ? '/a/' + uuid : '/a/' + uuid + '/v/' + activeVersion;
       window.history.pushState({ version: activeVersion }, '', newPath);
-      showToast('Switched to Version ' + activeVersion);
+      showToast('Switched to version ' + activeVersion);
     }
 
     function setViewport(mode) {
@@ -376,7 +463,7 @@ export function renderViewerHtml({ artifact, currentVersion }) {
     function copyShareUrl() {
       const shareUrl = window.location.origin + (activeVersion === latestVersion ? '/a/' + uuid : '/a/' + uuid + '/v/' + activeVersion);
       navigator.clipboard.writeText(shareUrl).then(() => {
-        showToast('🔗 Link copied: ' + shareUrl);
+        showToast('Link copied to clipboard');
       }).catch(() => {
         prompt('Copy artifact URL:', shareUrl);
       });
@@ -389,12 +476,17 @@ export function renderViewerHtml({ artifact, currentVersion }) {
       setTimeout(() => toast.classList.remove('show'), 2500);
     }
 
-    // Handle browser forward/back buttons
+    // Handle browser forward/back buttons (state may be null for entries
+    // created outside pushState, so fall back to parsing the URL)
     window.addEventListener('popstate', (event) => {
-      if (event.state && event.state.version) {
-        document.getElementById('versionSelect').value = event.state.version;
-        document.getElementById('artifactFrame').src = '/raw/' + uuid + '/' + event.state.version;
+      let ver = event.state && event.state.version;
+      if (!ver) {
+        const match = window.location.pathname.match(/\\/v\\/(\\d+)$/);
+        ver = match ? parseInt(match[1], 10) : latestVersion;
       }
+      activeVersion = ver;
+      document.getElementById('versionSelect').value = String(ver);
+      document.getElementById('artifactFrame').src = '/raw/' + uuid + '/' + ver;
     });
   </script>
 </body>

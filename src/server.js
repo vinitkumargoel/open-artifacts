@@ -13,12 +13,12 @@ async function startServer() {
   =======================================================
   🚀 OpenArtifacts Server Running
   -------------------------------------------------------
-  &bull; Environment:    ${config.nodeEnv}
-  &bull; Port:           ${config.port}
-  &bull; Base URL:       ${config.baseUrl}
-  &bull; Upload Portal:  ${config.baseUrl}/upload
-  &bull; Storage Path:   ${config.storagePath}
-  &bull; MongoDB:        ${config.mongoUri}
+  • Environment:    ${config.nodeEnv}
+  • Port:           ${config.port}
+  • Base URL:       ${config.baseUrl}
+  • Upload Portal:  ${config.baseUrl}/upload
+  • Storage Path:   ${config.storagePath}
+  • MongoDB:        ${config.mongoUri}
   =======================================================
     `);
   });

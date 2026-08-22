@@ -4,6 +4,7 @@ export function renderUploadHtml() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>OpenArtifacts &bull; Studio Publisher</title>
   <style>
     :root {
@@ -152,6 +153,10 @@ export function renderUploadHtml() {
       width: 6px;
       height: 6px;
       border-radius: 50%;
+      background: var(--text-tertiary);
+    }
+
+    .token-dot.active {
       background: var(--success);
     }
 
@@ -749,18 +754,20 @@ export function renderUploadHtml() {
     <div class="nav-actions">
       <!-- Recents Button -->
       <button class="nav-btn" onclick="openRecentsModal()">
-        <span>⏱️ Recents</span>
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path stroke-linecap="round" d="M12 7v5l3 3"></path></svg>
+        <span>Recents</span>
       </button>
 
       <!-- Keyboard Shortcuts Help -->
       <button class="nav-btn" onclick="openShortcutsModal()" title="Keyboard Shortcuts">
-        <span>⌨️ Shortcuts</span>
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path stroke-linecap="round" d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 13h6M8 17h8"></path></svg>
+        <span>Shortcuts</span>
       </button>
 
       <!-- Token Status Pill -->
       <div class="token-pill" onclick="promptToken()">
-        <div class="token-dot"></div>
-        <span id="tokenDisplay">token: configured</span>
+        <div class="token-dot" id="tokenDot"></div>
+        <span id="tokenDisplay">token: unset</span>
       </div>
     </div>
   </header>
@@ -929,7 +936,7 @@ export function renderUploadHtml() {
   <div class="modal-backdrop" id="recentsModal" onclick="closeModals(event)">
     <div class="modal-content" onclick="event.stopPropagation()">
       <div class="modal-header">
-        <div style="font-weight: 700; font-size: 14px;">⏱️ Recently Published Artifacts</div>
+        <div style="font-weight: 700; font-size: 14px;">Recently Published Artifacts</div>
         <button class="nav-btn" onclick="document.getElementById('recentsModal').style.display='none'">✕</button>
       </div>
       <div id="recentsList">
@@ -944,7 +951,7 @@ export function renderUploadHtml() {
   <div class="modal-backdrop" id="shortcutsModal" onclick="closeModals(event)">
     <div class="modal-content" onclick="event.stopPropagation()">
       <div class="modal-header">
-        <div style="font-weight: 700; font-size: 14px;">⌨️ Keyboard Shortcuts</div>
+        <div style="font-weight: 700; font-size: 14px;">Keyboard Shortcuts</div>
         <button class="nav-btn" onclick="document.getElementById('shortcutsModal').style.display='none'">✕</button>
       </div>
       <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
@@ -967,7 +974,12 @@ export function renderUploadHtml() {
     const savedToken = localStorage.getItem('open_artifacts_token') || sessionStorage.getItem('open_artifacts_token') || '';
     if (savedToken) {
       document.getElementById('tokenInput').value = savedToken;
-      document.getElementById('tokenDisplay').textContent = 'token: active';
+      setTokenStatus(true);
+    }
+
+    function setTokenStatus(active) {
+      document.getElementById('tokenDisplay').textContent = active ? 'token: active' : 'token: unset';
+      document.getElementById('tokenDot').classList.toggle('active', !!active);
     }
 
     function setMode(mode) {
@@ -1010,7 +1022,7 @@ export function renderUploadHtml() {
       if (res !== null) {
         document.getElementById('tokenInput').value = res.trim();
         localStorage.setItem('open_artifacts_token', res.trim());
-        document.getElementById('tokenDisplay').textContent = res.trim() ? 'token: active' : 'token: unset';
+        setTokenStatus(!!res.trim());
         showToast('Token updated');
       }
     }
@@ -1115,6 +1127,7 @@ export function renderUploadHtml() {
       const blob = new Blob([currentHtml], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
 
     function formatHtmlCode() {
@@ -1178,8 +1191,15 @@ export function renderUploadHtml() {
       document.querySelectorAll('.modal-backdrop').forEach(m => m.style.display = 'none');
     }
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
     function renderRecents() {
-      const list = JSON.parse(localStorage.getItem('open_artifacts_recents') || '[]');
+      let list = [];
+      try {
+        list = JSON.parse(localStorage.getItem('open_artifacts_recents') || '[]');
+      } catch (e) { list = []; }
+      list = list.filter(item => item && UUID_RE.test(item.id || ''));
+
       const container = document.getElementById('recentsList');
       if (list.length === 0) {
         container.innerHTML = '<div style="font-size: 12.5px; color: var(--text-tertiary); text-align: center; padding: 20px;">No artifacts published yet.</div>';
@@ -1190,14 +1210,18 @@ export function renderUploadHtml() {
         <div class="recent-item">
           <div>
             <div style="font-weight: 600; font-size: 13px;">\${escapeHtml(item.title || 'Untitled')}</div>
-            <div style="font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono);">\${item.id} &bull; v\${item.version}</div>
+            <div style="font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono);">\${escapeHtml(item.id)} &bull; v\${escapeHtml(item.version)}</div>
           </div>
           <div style="display: flex; gap: 6px;">
-            <button class="nav-btn" onclick="applyUpdateTarget('\${item.id}')" title="Bump to next version">Update</button>
-            <a href="\${item.url}" target="_blank" class="nav-btn">Open &rarr;</a>
+            <button class="nav-btn" data-update-id="\${escapeHtml(item.id)}" title="Bump to next version">Update</button>
+            <a href="/a/\${escapeHtml(item.id)}" target="_blank" rel="noopener noreferrer" class="nav-btn">Open &rarr;</a>
           </div>
         </div>
       \`).join('');
+
+      container.querySelectorAll('button[data-update-id]').forEach(btn => {
+        btn.addEventListener('click', () => applyUpdateTarget(btn.dataset.updateId));
+      });
     }
 
     function applyUpdateTarget(uuid) {
@@ -1235,7 +1259,7 @@ export function renderUploadHtml() {
 
       if (activeMode === 'file') {
         if (!currentFile) {
-          alert('Please select or drop an HTML file.');
+          showToast('Please select or drop an HTML file');
           return;
         }
         fileBlob = currentFile;
@@ -1243,13 +1267,14 @@ export function renderUploadHtml() {
       } else {
         const code = document.getElementById('codeArea').value.trim();
         if (!code) {
-          alert('Please enter HTML code.');
+          showToast('Please enter HTML code');
           return;
         }
         fileBlob = new Blob([code], { type: 'text/html' });
       }
 
       localStorage.setItem('open_artifacts_token', token);
+      setTokenStatus(true);
 
       const formData = new FormData();
       formData.append('file', fileBlob, filename);
@@ -1292,7 +1317,7 @@ export function renderUploadHtml() {
 
         showToast('Artifact published successfully');
       } catch (err) {
-        alert('Error: ' + err.message);
+        showToast('Publish failed: ' + err.message);
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>Publish Artifact</span><span class="kbd-badge">⌘↵</span>';
@@ -1302,9 +1327,9 @@ export function renderUploadHtml() {
     // Keyboard shortcuts
     window.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        document.getElementById('studioForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        document.getElementById('studioForm').requestSubmit();
       }
-      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+      if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
         if (e.key === '1') setDevice('desktop');
         if (e.key === '2') setDevice('tablet');
         if (e.key === '3') setDevice('mobile');

@@ -110,7 +110,9 @@ router.get('/a/:uuid/v/:version', readLimiter, viewerSecurityHeaders, async (req
     }
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    // Short TTL: the shell embeds the version dropdown, so a long cache would
+    // hide newly published versions on pinned pages. Raw content stays immutable.
+    res.setHeader('Cache-Control', 'public, max-age=300');
 
     const html = renderViewerHtml({
       artifact: metadata,
