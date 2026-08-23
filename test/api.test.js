@@ -233,6 +233,16 @@ describe('OpenArtifacts End-to-End API Test Suite', () => {
 
     expect(resInvalid.status).toBe(400);
     expect(resInvalid.body.error.code).toBe('INVALID_UUID_FORMAT');
+
+    // Reject > 100 items
+    const tooManyIds = Array.from({ length: 101 }, () => '00000000-0000-4000-8000-000000000000');
+    const resTooMany = await request(app)
+      .post('/api/artifacts/bulk-delete')
+      .set('Authorization', `Bearer ${AUTH_TOKEN}`)
+      .send({ ids: tooManyIds });
+
+    expect(resTooMany.status).toBe(400);
+    expect(resTooMany.body.error.code).toBe('BATCH_LIMIT_EXCEEDED');
   });
 
   it('POST /api/artifacts/bulk-delete successfully bulk deletes artifacts', async () => {

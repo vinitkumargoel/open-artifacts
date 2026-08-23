@@ -411,9 +411,13 @@ export async function bulkDeleteArtifacts(ids) {
     return { deletedCount: 0, deletedIds: [], failedIds: [] };
   }
 
-  const validIds = ids
-    .filter(id => typeof id === 'string' && isValidUuid4(id.trim()))
-    .map(id => id.trim());
+  const validIds = Array.from(
+    new Set(
+      ids
+        .filter(id => typeof id === 'string' && isValidUuid4(id.trim()))
+        .map(id => id.trim())
+    )
+  );
 
   const deletedIds = [];
   const failedIds = [];

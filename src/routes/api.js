@@ -191,6 +191,16 @@ const handleBulkDelete = async (req, res, next) => {
       });
     }
 
+    if (ids.length > 100) {
+      return res.status(400).json({
+        error: {
+          code: 'BATCH_LIMIT_EXCEEDED',
+          message: 'Batch size exceeds maximum limit of 100 artifacts per delete operation.',
+          status: 400
+        }
+      });
+    }
+
     // Validate every ID is UUID v4
     const invalidIds = ids.filter(id => typeof id !== 'string' || !isValidUuid4(id.trim()));
     if (invalidIds.length > 0) {
