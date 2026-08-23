@@ -9,13 +9,15 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "dev:worker": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "astro dev",
+    "dev:legacy": "node --watch src/server.js",
+    "build": "astro build",
+    "preview": "astro build && wrangler dev",
+    "deploy": "astro build && wrangler deploy",
     "migrate:r2": "node scripts/migrate-to-r2.mjs",
     "migrate:r2:remote": "node scripts/migrate-to-r2.mjs --remote",
-    "test": "vitest run",
-    "test:e2e": "vitest run test/e2e.worker.test.js",
+    "test": "astro build && vitest run",
+    "test:e2e": "astro build && vitest run test/e2e.worker.test.js",
     "test:watch": "vitest"
   },
   "keywords": [

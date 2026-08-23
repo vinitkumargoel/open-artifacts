@@ -1,0 +1,31 @@
+---
+// GET /a/:uuid — viewer shell for the latest version (never cached, so newly
+// published versions appear immediately).
+import { env } from 'cloudflare:workers';
+import ArtifactViewer from '../../../components/ArtifactViewer.astro';
+import { VIEWER_SECURITY_HEADERS } from '../../../../worker/headers.js';
+import { isValidUuid4 } from '../../../../src/utils/sanitize.js';
+import { getArtifactMetadata } from '../../../../worker/storage.js';
+import { htmlErrorPage, baseUrl } from '../../../lib/http.js';
+
+export const prerender = false;
+
+const { uuid } = Astro.params;
+
+if (!isValidUuid4(uuid)) {
+  return htmlErrorPage(400, 'Invalid Artifact ID', 'The requested artifact ID is not a valid UUID-4 format.');
+}
+
+const metadata = await getArtifactMetadata(env.ARTIFACTS, uuid);
+if (!metadata) {
+  return htmlErrorPage(404, 'Artifact Not Found (404)', `No artifact found with ID: <code>${uuid}</code>`);
+}
+
+const latestVer = metadata.latestVersion || 1;
+
+for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
+  Astro.response.headers.set(k, v);
+}
+Astro.response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+---
+<ArtifactViewer artifact={metadata} currentVersion={latestVer} baseUrl={baseUrl(Astro.request)} />

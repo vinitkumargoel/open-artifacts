@@ -1,0 +1,12 @@
+---
+// GET / — same upload portal as /upload, with the viewer-shell header set.
+import UploadPortal from '../components/UploadPortal.astro';
+import { VIEWER_SECURITY_HEADERS } from '../../worker/headers.js';
+
+export const prerender = false;
+
+for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
+  Astro.response.headers.set(k, v);
+}
+---
+<UploadPortal />
