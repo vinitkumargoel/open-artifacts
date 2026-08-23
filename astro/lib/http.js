@@ -52,17 +52,36 @@ export function htmlErrorPage(status, heading, body) {
 }
 
 /**
+ * Discards an unread request body chunk-by-chunk (no buffering). Responding
+ * before the body is consumed is fine on deployed workerd, but wrangler dev's
+ * ProxyWorker treats the resulting half-closed connection as fatal ("Network
+ * connection lost") and kills the dev server, so every early rejection of a
+ * body-carrying request must drain first.
+ */
+export async function drainBody(request) {
+  try {
+    if (request.body) {
+      for await (const chunk of request.body) { void chunk; }
+    }
+  } catch (err) {
+    // Body already consumed or the client hung up — nothing left to drain.
+  }
+}
+
+/**
  * Publisher token guard, mirroring the Hono authGuard. Returns an error
  * Response when the request must be rejected, or null to proceed.
  */
 export async function authGuard(request) {
   const config = getConfig();
   if (!config.accessToken) {
+    await drainBody(request);
     return jsonError('AUTH_NOT_CONFIGURED',
       'Server ARTIFACT_ACCESS_TOKEN is not configured in environment variables.', 500);
   }
   const ok = await verifyToken(extractToken(request), config.accessToken);
   if (!ok) {
+    await drainBody(request);
     return jsonError('UNAUTHORIZED',
       'Unauthorized. Missing or invalid access token. Provide a valid Authorization: Bearer <token> or x-access-token header.', 401);
   }

@@ -13,7 +13,7 @@
  */
 import { env } from 'cloudflare:workers';
 import { checkRateLimit } from '../worker/ratelimit.js';
-import { getConfig, jsonError, mapError } from './lib/http.js';
+import { getConfig, jsonError, mapError, drainBody } from './lib/http.js';
 
 const BASELINE_SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
@@ -92,6 +92,7 @@ export async function onRequest(context, next) {
         ? `Upload rate limit exceeded. Max ${limit} uploads per minute.`
         : `Read rate limit exceeded. Max ${limit} requests per minute.`;
       rateHeaders['Retry-After'] = String(verdict.resetSeconds);
+      await drainBody(request);
       return finalize(jsonError('RATE_LIMITED', message, 429), rateHeaders);
     }
   }
