@@ -10,6 +10,10 @@ export default defineConfig({
   trailingSlash: 'never',
   // No sessions: without this the adapter auto-provisions a SESSION KV binding.
   session: false,
+  // The publish/delete API is guarded by a bearer token and served under a
+  // permissive CORS policy (origin '*'), same as the Hono worker. Astro's
+  // origin-header CSRF check would 403 every non-browser POST (CLI, curl, e2e).
+  security: { checkOrigin: false },
   devToolbar: { enabled: false },
   // No Astro image processing is used; without this the adapter injects a
   // Cloudflare Images (IMAGES) binding into the deployed Worker.

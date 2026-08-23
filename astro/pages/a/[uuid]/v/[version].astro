@@ -33,6 +33,7 @@ if (!hasVersion) {
 for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
   Astro.response.headers.set(k, v);
 }
+Astro.response.headers.set('Content-Type', 'text/html; charset=UTF-8');
 // Short TTL: the shell embeds the version dropdown, so a long cache would
 // hide newly published versions on pinned pages. Raw content stays immutable.
 Astro.response.headers.set('Cache-Control', 'public, max-age=300');

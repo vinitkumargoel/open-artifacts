@@ -8,5 +8,6 @@ export const prerender = false;
 for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
   Astro.response.headers.set(k, v);
 }
+Astro.response.headers.set('Content-Type', 'text/html; charset=UTF-8');
 ---
 <UploadPortal />
