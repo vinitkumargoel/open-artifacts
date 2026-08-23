@@ -872,6 +872,92 @@ export function renderHistoryHtml() {
     .btn-modal-delete:hover:not(:disabled) { background: var(--danger-hover); }
     .btn-modal-delete:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    /* Access Token Modal */
+    .modal-icon-token {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .token-input-row { position: relative; }
+    .token-input-row input { padding-right: 40px; }
+
+    .token-eye {
+      position: absolute;
+      top: 50%;
+      right: 5px;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .token-eye:hover { color: var(--text-primary); background: var(--bg-subtle); }
+
+    .token-hint {
+      font-size: 11.5px;
+      color: var(--text-tertiary);
+      line-height: 1.45;
+    }
+    .token-hint.saved { color: var(--success); }
+
+    .token-remember {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+    }
+    .token-remember input {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .btn-modal-save {
+      height: 34px;
+      padding: 0 16px;
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #ffffff;
+      cursor: pointer;
+    }
+    .btn-modal-save:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-modal-save:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-token-clear {
+      height: 34px;
+      padding: 0 12px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--danger);
+      cursor: pointer;
+      margin-right: auto;
+    }
+    .btn-token-clear:hover { background: var(--danger-bg); }
+
     /* Toast */
     .toast {
       position: fixed;
@@ -1088,6 +1174,42 @@ export function renderHistoryHtml() {
     </div>
   </div>
 
+  <!-- Access Token Modal -->
+  <div class="modal-backdrop" id="tokenModal" onclick="handleTokenBackdrop(event)">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="tokenModalTitle" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-icon-token">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+        </div>
+        <div class="modal-title-group">
+          <h3 id="tokenModalTitle">Access Token</h3>
+          <p>Authorizes administrative actions &mdash; publishing, updating, and deleting artifacts. Stored only in this browser and sent only with your own requests.</p>
+        </div>
+      </div>
+
+      <div class="modal-token-input">
+        <label for="tokenModalInput">Token <span style="font-weight: 400; color: var(--text-tertiary);">(ARTIFACT_ACCESS_TOKEN)</span></label>
+        <div class="token-input-row">
+          <input type="password" id="tokenModalInput" placeholder="Paste access token" autocomplete="off" spellcheck="false"
+                 oninput="onTokenModalInput()" onkeydown="if (event.key === 'Enter') saveTokenFromModal()">
+          <button type="button" class="token-eye" id="tokenEyeBtn" onclick="toggleTokenVisibility()" title="Show token" aria-label="Show token"></button>
+        </div>
+        <div class="token-hint" id="tokenModalHint">No token saved on this device.</div>
+      </div>
+
+      <label class="token-remember" for="tokenRememberChk">
+        <input type="checkbox" id="tokenRememberChk" checked>
+        <span>Remember on this device <span style="color: var(--text-tertiary);">&mdash; uncheck to keep for this tab only</span></span>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-token-clear" id="tokenClearBtn" onclick="clearTokenFromModal()">Clear saved token</button>
+        <button type="button" class="btn-modal-cancel" onclick="closeTokenModal()">Cancel</button>
+        <button type="button" class="btn-modal-save" id="tokenSaveBtn" onclick="saveTokenFromModal()" disabled>Save Token</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast">Notice</div>
 
   <script>
@@ -1115,15 +1237,93 @@ export function renderHistoryHtml() {
       }
     }
 
+    // Access Token Modal
+    const EYE_SVG = '<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>';
+    const EYE_OFF_SVG = '<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path><path stroke-linecap="round" d="M4 4l16 16"></path></svg>';
+
     function promptToken() {
-      const current = getStoredToken();
-      const res = prompt('Enter ARTIFACT_ACCESS_TOKEN for administrative actions:', current);
-      if (res !== null) {
-        const trimmed = res.trim();
-        localStorage.setItem('open_artifacts_token', trimmed);
-        syncTokenDisplay();
-        showToast(trimmed ? 'Access token saved' : 'Access token cleared');
+      openTokenModal();
+    }
+
+    function tokenIsSessionOnly() {
+      return !localStorage.getItem('open_artifacts_token') && !!sessionStorage.getItem('open_artifacts_token');
+    }
+
+    function openTokenModal() {
+      const input = document.getElementById('tokenModalInput');
+      const hint = document.getElementById('tokenModalHint');
+      const clearBtn = document.getElementById('tokenClearBtn');
+      const stored = getStoredToken();
+
+      input.value = '';
+      input.type = 'password';
+      const eyeBtn = document.getElementById('tokenEyeBtn');
+      eyeBtn.innerHTML = EYE_SVG;
+      eyeBtn.title = 'Show token';
+      eyeBtn.setAttribute('aria-label', 'Show token');
+      document.getElementById('tokenSaveBtn').disabled = true;
+      document.getElementById('tokenRememberChk').checked = !tokenIsSessionOnly();
+
+      if (stored) {
+        hint.textContent = 'A token is saved ' + (tokenIsSessionOnly() ? 'for this tab' : 'on this device') + '. Saving a new value replaces it.';
+        hint.classList.add('saved');
+        clearBtn.style.display = '';
+      } else {
+        hint.textContent = 'No token saved yet. Ask the instance owner for ARTIFACT_ACCESS_TOKEN.';
+        hint.classList.remove('saved');
+        clearBtn.style.display = 'none';
       }
+
+      document.getElementById('tokenModal').style.display = 'flex';
+      setTimeout(() => input.focus(), 30);
+    }
+
+    function closeTokenModal() {
+      document.getElementById('tokenModalInput').value = '';
+      document.getElementById('tokenModal').style.display = 'none';
+    }
+
+    function handleTokenBackdrop(e) {
+      if (e.target.id === 'tokenModal') closeTokenModal();
+    }
+
+    function onTokenModalInput() {
+      document.getElementById('tokenSaveBtn').disabled = !document.getElementById('tokenModalInput').value.trim();
+    }
+
+    function toggleTokenVisibility() {
+      const input = document.getElementById('tokenModalInput');
+      const btn = document.getElementById('tokenEyeBtn');
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = show ? EYE_OFF_SVG : EYE_SVG;
+      btn.title = show ? 'Hide token' : 'Show token';
+      btn.setAttribute('aria-label', btn.title);
+      input.focus();
+    }
+
+    function saveTokenFromModal() {
+      const trimmed = document.getElementById('tokenModalInput').value.trim();
+      if (!trimmed) return;
+      const remember = document.getElementById('tokenRememberChk').checked;
+      if (remember) {
+        localStorage.setItem('open_artifacts_token', trimmed);
+        sessionStorage.removeItem('open_artifacts_token');
+      } else {
+        sessionStorage.setItem('open_artifacts_token', trimmed);
+        localStorage.removeItem('open_artifacts_token');
+      }
+      closeTokenModal();
+      syncTokenDisplay();
+      showToast(remember ? 'Access token saved on this device' : 'Access token saved for this tab');
+    }
+
+    function clearTokenFromModal() {
+      localStorage.removeItem('open_artifacts_token');
+      sessionStorage.removeItem('open_artifacts_token');
+      closeTokenModal();
+      syncTokenDisplay();
+      showToast('Access token cleared');
     }
 
     // View Switching
@@ -1633,6 +1833,7 @@ export function renderHistoryHtml() {
       // Escape closes modal / clears search
       if (e.key === 'Escape') {
         closeDeleteModal();
+        closeTokenModal();
         if (document.activeElement === document.getElementById('searchInput')) {
           document.activeElement.blur();
         }

@@ -712,6 +712,130 @@ export function renderUploadHtml() {
     }
     .recent-item:hover { background: var(--bg-subtle); }
 
+    /* Access Token Modal */
+    .modal-card {
+      width: 100%;
+      max-width: 480px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .tm-header { display: flex; align-items: flex-start; gap: 12px; }
+
+    .modal-icon-token {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .tm-title h3 { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+    .tm-title p { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; line-height: 1.4; }
+
+    .modal-token-input { display: flex; flex-direction: column; gap: 6px; }
+    .modal-token-input label { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+    .modal-token-input input {
+      width: 100%;
+      height: 36px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0 40px 0 10px;
+      font-size: 12.5px;
+      font-family: var(--font-mono);
+      outline: none;
+    }
+    .modal-token-input input:focus { border-color: var(--border-focus); background: var(--bg-surface); }
+
+    .token-input-row { position: relative; }
+
+    .token-eye {
+      position: absolute;
+      top: 50%;
+      right: 5px;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .token-eye:hover { color: var(--text-primary); background: var(--bg-subtle); }
+
+    .token-hint { font-size: 11.5px; color: var(--text-tertiary); line-height: 1.45; }
+    .token-hint.saved { color: var(--success); }
+
+    .token-remember {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+    }
+    .token-remember input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+
+    .tm-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+    .btn-modal-cancel {
+      height: 34px;
+      padding: 0 14px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+    .btn-modal-cancel:hover { background: var(--bg-subtle); }
+
+    .btn-modal-save {
+      height: 34px;
+      padding: 0 16px;
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #ffffff;
+      cursor: pointer;
+    }
+    .btn-modal-save:hover:not(:disabled) { background: var(--accent-hover, #27272a); }
+    .btn-modal-save:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-token-clear {
+      height: 34px;
+      padding: 0 12px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--danger);
+      cursor: pointer;
+      margin-right: auto;
+    }
+    .btn-token-clear:hover { background: var(--danger-bg, #fef2f2); }
+
     /* Toast */
     .toast {
       position: fixed;
@@ -968,6 +1092,42 @@ export function renderUploadHtml() {
     </div>
   </div>
 
+  <!-- Access Token Modal -->
+  <div class="modal-backdrop" id="tokenModal" onclick="closeModals(event)">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="tokenModalTitle" onclick="event.stopPropagation()">
+      <div class="tm-header">
+        <div class="modal-icon-token">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+        </div>
+        <div class="tm-title">
+          <h3 id="tokenModalTitle">Access Token</h3>
+          <p>Authorizes administrative actions &mdash; publishing, updating, and deleting artifacts. Stored only in this browser and sent only with your own requests.</p>
+        </div>
+      </div>
+
+      <div class="modal-token-input">
+        <label for="tokenModalInput">Token <span style="font-weight: 400; color: var(--text-tertiary);">(ARTIFACT_ACCESS_TOKEN)</span></label>
+        <div class="token-input-row">
+          <input type="password" id="tokenModalInput" placeholder="Paste access token" autocomplete="off" spellcheck="false"
+                 oninput="onTokenModalInput()" onkeydown="if (event.key === 'Enter') saveTokenFromModal()">
+          <button type="button" class="token-eye" id="tokenEyeBtn" onclick="toggleTokenVisibility()" title="Show token" aria-label="Show token"></button>
+        </div>
+        <div class="token-hint" id="tokenModalHint">No token saved on this device.</div>
+      </div>
+
+      <label class="token-remember" for="tokenRememberChk">
+        <input type="checkbox" id="tokenRememberChk" checked>
+        <span>Remember on this device <span style="color: var(--text-tertiary);">&mdash; uncheck to keep for this tab only</span></span>
+      </label>
+
+      <div class="tm-actions">
+        <button type="button" class="btn-token-clear" id="tokenClearBtn" onclick="clearTokenFromModal()">Clear saved token</button>
+        <button type="button" class="btn-modal-cancel" onclick="closeModals()">Cancel</button>
+        <button type="button" class="btn-modal-save" id="tokenSaveBtn" onclick="saveTokenFromModal()" disabled>Save Token</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast">Copied to clipboard</div>
 
   <script>
@@ -1022,15 +1182,89 @@ export function renderUploadHtml() {
       chevron.innerHTML = isOpen ? '&or;' : '&rsaquo;';
     }
 
+    // Access Token Modal
+    const EYE_SVG = '<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>';
+    const EYE_OFF_SVG = '<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path><path stroke-linecap="round" d="M4 4l16 16"></path></svg>';
+
+    function getStoredToken() {
+      return localStorage.getItem('open_artifacts_token') || sessionStorage.getItem('open_artifacts_token') || '';
+    }
+
+    function tokenIsSessionOnly() {
+      return !localStorage.getItem('open_artifacts_token') && !!sessionStorage.getItem('open_artifacts_token');
+    }
+
     function promptToken() {
-      const current = document.getElementById('tokenInput').value;
-      const res = prompt('Enter ARTIFACT_ACCESS_TOKEN:', current);
-      if (res !== null) {
-        document.getElementById('tokenInput').value = res.trim();
-        localStorage.setItem('open_artifacts_token', res.trim());
-        setTokenStatus(!!res.trim());
-        showToast('Token updated');
+      const input = document.getElementById('tokenModalInput');
+      const hint = document.getElementById('tokenModalHint');
+      const clearBtn = document.getElementById('tokenClearBtn');
+      const stored = getStoredToken();
+
+      input.value = '';
+      input.type = 'password';
+      const eyeBtn = document.getElementById('tokenEyeBtn');
+      eyeBtn.innerHTML = EYE_SVG;
+      eyeBtn.title = 'Show token';
+      eyeBtn.setAttribute('aria-label', 'Show token');
+      document.getElementById('tokenSaveBtn').disabled = true;
+      document.getElementById('tokenRememberChk').checked = !tokenIsSessionOnly();
+
+      if (stored) {
+        hint.textContent = 'A token is saved ' + (tokenIsSessionOnly() ? 'for this tab' : 'on this device') + '. Saving a new value replaces it.';
+        hint.classList.add('saved');
+        clearBtn.style.display = '';
+      } else {
+        hint.textContent = 'No token saved yet. Ask the instance owner for ARTIFACT_ACCESS_TOKEN.';
+        hint.classList.remove('saved');
+        clearBtn.style.display = 'none';
       }
+
+      document.getElementById('tokenModal').style.display = 'flex';
+      setTimeout(() => input.focus(), 30);
+    }
+
+    function onTokenModalInput() {
+      document.getElementById('tokenSaveBtn').disabled = !document.getElementById('tokenModalInput').value.trim();
+    }
+
+    function toggleTokenVisibility() {
+      const input = document.getElementById('tokenModalInput');
+      const btn = document.getElementById('tokenEyeBtn');
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = show ? EYE_OFF_SVG : EYE_SVG;
+      btn.title = show ? 'Hide token' : 'Show token';
+      btn.setAttribute('aria-label', btn.title);
+      input.focus();
+    }
+
+    function saveTokenFromModal() {
+      const modalInput = document.getElementById('tokenModalInput');
+      const trimmed = modalInput.value.trim();
+      if (!trimmed) return;
+      const remember = document.getElementById('tokenRememberChk').checked;
+      if (remember) {
+        localStorage.setItem('open_artifacts_token', trimmed);
+        sessionStorage.removeItem('open_artifacts_token');
+      } else {
+        sessionStorage.setItem('open_artifacts_token', trimmed);
+        localStorage.removeItem('open_artifacts_token');
+      }
+      document.getElementById('tokenInput').value = trimmed;
+      modalInput.value = '';
+      closeModals();
+      setTokenStatus(true);
+      showToast(remember ? 'Access token saved on this device' : 'Access token saved for this tab');
+    }
+
+    function clearTokenFromModal() {
+      localStorage.removeItem('open_artifacts_token');
+      sessionStorage.removeItem('open_artifacts_token');
+      document.getElementById('tokenInput').value = '';
+      document.getElementById('tokenModalInput').value = '';
+      closeModals();
+      setTokenStatus(false);
+      showToast('Access token cleared');
     }
 
     // Drag & Drop
