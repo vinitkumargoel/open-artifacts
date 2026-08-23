@@ -4,7 +4,7 @@
  */
 import { env } from 'cloudflare:workers';
 import { listAllArtifacts, processArtifactUpload } from '../../../../worker/storage.js';
-import { json, jsonError, baseUrl, authGuard, getConfig, mapError } from '../../../lib/http.js';
+import { json, jsonError, baseUrl, authGuard, getConfig, mapError, drainBody } from '../../../lib/http.js';
 import { handleBulkDelete } from '../../../lib/artifacts.js';
 
 export const prerender = false;
@@ -27,6 +27,7 @@ export async function POST({ request }) {
   // oversized upload is fully received before the file.size check can run.)
   const contentLength = parseInt(request.headers.get('content-length') || '', 10);
   if (Number.isFinite(contentLength) && contentLength > maxBytes + 64 * 1024) {
+    await drainBody(request);
     return jsonError('FILE_TOO_LARGE', `Uploaded file exceeds the maximum allowed size of ${config.maxFileSizeMb}MB.`, 413);
   }
 

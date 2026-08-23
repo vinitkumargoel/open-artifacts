@@ -57,14 +57,30 @@ export function htmlErrorPage(status, heading, body) {
  * ProxyWorker treats the resulting half-closed connection as fatal ("Network
  * connection lost") and kills the dev server, so every early rejection of a
  * body-carrying request must drain first.
+ *
+ * The drain is capped at the upload size limit (plus slack) so an
+ * unauthenticated client can never make the Worker read more bytes than a
+ * legitimate upload would; past the cap the stream is cancelled instead.
  */
 export async function drainBody(request) {
   try {
     if (request.body) {
-      for await (const chunk of request.body) { void chunk; }
+      const maxBytes = getConfig().maxFileSizeMb * 1024 * 1024 + 64 * 1024;
+      let seen = 0;
+      const reader = request.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        seen += value.byteLength;
+        if (seen > maxBytes) {
+          await reader.cancel();
+          break;
+        }
+      }
     }
   } catch (err) {
     // Body already consumed or the client hung up — nothing left to drain.
+    console.debug('[drainBody] drain failed:', err);
   }
 }
 
@@ -89,25 +105,48 @@ export async function authGuard(request) {
 }
 
 /**
- * Application error mapping, mirroring the Hono app.onError handler.
+ * Application error mapping, mirroring the Hono app.onError handler. Must never
+ * throw itself, even for `throw null` / non-Error values.
  */
 export function mapError(err) {
   const config = getConfig();
+  const code = err?.code;
+  const message = err?.message;
 
   const known = {
-    INVALID_FILE_TYPE: [400, err.message || 'Invalid file type. Only standalone HTML files (.html, .htm) are supported.'],
+    INVALID_FILE_TYPE: [400, message || 'Invalid file type. Only standalone HTML files (.html, .htm) are supported.'],
     INVALID_UUID_FORMAT: [400, 'The provided artifact ID must be a valid RFC 4122 UUID-4 string.'],
-    ARTIFACT_NOT_FOUND: [404, err.message || 'Artifact not found.'],
-    VERSION_NOT_FOUND: [404, err.message || 'The requested artifact version does not exist.'],
-    UNAUTHORIZED: [401, err.message || 'Unauthorized access.']
+    ARTIFACT_NOT_FOUND: [404, message || 'Artifact not found.'],
+    VERSION_NOT_FOUND: [404, message || 'The requested artifact version does not exist.'],
+    UNAUTHORIZED: [401, message || 'Unauthorized access.']
   };
 
-  if (err.code && known[err.code]) {
-    const [status, message] = known[err.code];
-    return jsonError(err.code, message, status);
+  if (code && known[code]) {
+    const [status, knownMessage] = known[code];
+    return jsonError(code, knownMessage, status);
   }
 
   console.error('[OpenArtifacts Error]', err);
   return jsonError('INTERNAL_SERVER_ERROR',
-    config.nodeEnv === 'production' ? 'An internal server error occurred.' : err.message, 500);
+    config.nodeEnv === 'production' ? 'An internal server error occurred.' : String(message ?? err), 500);
+}
+
+/**
+ * The Hono app.notFound response: HTML for browser-ish clients (missing Accept
+ * or wildcard included, matching Express req.accepts('html')), JSON error
+ * envelope otherwise. Shared by the catch-all route and the middleware's
+ * trailing-slash handling.
+ */
+export function notFoundResponse(request) {
+  const accept = request.headers.get('accept');
+  if (!accept || accept.includes('text/html') || accept.includes('*/*')) {
+    return new Response(`
+        <!DOCTYPE html><html><body style="font-family:sans-serif;background:#090d16;color:#f8fafc;padding:40px;text-align:center;">
+          <h2>404 &bull; Page Not Found</h2>
+          <p style="color:#94a3b8;">The requested page could not be found.</p>
+          <a href="/upload" style="color:#3b82f6;">&larr; Go to Upload Portal</a>
+        </body></html>
+      `, { status: 404, headers: { 'content-type': 'text/html; charset=UTF-8' } });
+  }
+  return jsonError('NOT_FOUND', `Cannot ${request.method} ${new URL(request.url).pathname}`, 404);
 }

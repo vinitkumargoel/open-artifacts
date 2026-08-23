@@ -13,7 +13,7 @@
  */
 import { env } from 'cloudflare:workers';
 import { checkRateLimit } from '../worker/ratelimit.js';
-import { getConfig, jsonError, mapError, drainBody } from './lib/http.js';
+import { getConfig, jsonError, mapError, drainBody, notFoundResponse } from './lib/http.js';
 
 const BASELINE_SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
@@ -32,7 +32,10 @@ function limiterScope(method, path) {
   if (method === 'POST') {
     return path === '/api/artifacts' ? 'upload' : null;
   }
-  if (method !== 'GET') return null;
+  // Hono dispatches HEAD through the matched GET route, so its read limiter
+  // counted HEAD traffic too; without this, HEAD would be an unthrottled way
+  // to force full R2 reads (Astro runs the GET handler and strips the body).
+  if (method !== 'GET' && method !== 'HEAD') return null;
   if (path === '/' || path === '/upload' || path === '/history') return 'read';
   if (/^\/a\/[^/]+(\/v\/[^/]+)?$/.test(path)) return 'read';
   if (/^\/raw\/[^/]+(\/[^/]+)?$/.test(path)) return 'read';
@@ -74,12 +77,29 @@ export async function onRequest(context, next) {
     return new Response(null, { status: 204, statusText: 'No Content', headers });
   }
 
+  // Astro's trailingSlash handling would otherwise redirect `/upload/` &c.
+  // before this middleware runs, but Hono's strict router 404'd trailing-slash
+  // variants like any other unmatched route — same body, same headers, no
+  // redirect, and (like Hono 404s) no rate limiting.
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    await drainBody(request);
+    return finalize(notFoundResponse(request), null);
+  }
+
   const scope = limiterScope(request.method, pathname);
   let rateHeaders = null;
   if (scope) {
     const config = getConfig();
     const limit = scope === 'upload' ? config.uploadRateLimitPerMin : config.readRateLimitPerMin;
-    const verdict = await checkRateLimit({ request, env, scope, limit });
+    let verdict;
+    try {
+      verdict = await checkRateLimit({ request, env, scope, limit });
+    } catch (err) {
+      // A Durable Object failure must still produce the standard error
+      // envelope with CORS + baseline headers (Hono's app.onError did).
+      await drainBody(request);
+      return finalize(mapError(err), null);
+    }
 
     rateHeaders = {
       'RateLimit-Limit': String(verdict.limit),

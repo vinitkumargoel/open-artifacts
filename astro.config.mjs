@@ -6,8 +6,11 @@ import cloudflare from '@astrojs/cloudflare';
 export default defineConfig({
   srcDir: './astro',
   output: 'server',
-  // Hono's strict router 404'd trailing-slash variants; keep that behavior.
-  trailingSlash: 'never',
+  // Hono's strict router 404'd trailing-slash variants. 'never' would have
+  // Astro 301-redirect them before the middleware runs (no headers, no rate
+  // limiting); 'ignore' lets them through so astro/middleware.js can return
+  // the Hono-parity 404 itself.
+  trailingSlash: 'ignore',
   // No sessions: without this the adapter auto-provisions a SESSION KV binding.
   session: false,
   // The publish/delete API is guarded by a bearer token and served under a
