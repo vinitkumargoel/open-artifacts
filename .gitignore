@@ -10,3 +10,4 @@ coverage/
 .wrangler/
 .dev.vars
 .artifact-token.production
+.playwright-cli/
