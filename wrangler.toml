@@ -1,6 +1,6 @@
 # OpenArtifacts on Cloudflare Workers + R2, served by Astro.
 #
-# `main` points at the custom Worker entry (astro/worker.js) that wraps the
+# `main` points at the custom Worker entry (src/worker.js) that wraps the
 # Astro handler and exports the RateLimiterDO Durable Object. This config is
 # consumed by the Cloudflare Vite plugin (via @astrojs/cloudflare): `astro dev`
 # runs it in workerd with these bindings, and `astro build` emits a resolved
@@ -15,7 +15,7 @@
 #   ARTIFACT_ACCESS_TOKEN - publisher token guarding upload/delete routes
 
 name = "open-artifacts"
-main = "astro/worker.js"
+main = "src/worker.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 

@@ -1,15 +1,11 @@
 import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 
-// The Astro source tree sits in astro/ instead of the default src/ — src/ was
-// the legacy Express app's home before its removal, and the shared server
-// modules live in worker/ beside it.
 export default defineConfig({
-  srcDir: './astro',
   output: 'server',
   // Hono's strict router 404'd trailing-slash variants. 'never' would have
   // Astro 301-redirect them before the middleware runs (no headers, no rate
-  // limiting); 'ignore' lets them through so astro/middleware.js can return
+  // limiting); 'ignore' lets them through so src/middleware.js can return
   // the Hono-parity 404 itself.
   trailingSlash: 'ignore',
   // No sessions: without this the adapter auto-provisions a SESSION KV binding.

@@ -47,7 +47,7 @@ npm test
 
 ## ☁️ Architecture (Astro on Cloudflare Workers + R2)
 
-The Worker is an [Astro](https://astro.build) app (`astro/`, built with `@astrojs/cloudflare`): pages and API endpoints live in `astro/pages/`, the cross-cutting CORS / rate-limit / security-header stack in `astro/middleware.js`, and `astro/worker.js` is the custom Worker entry that exports the `RateLimiterDO` Durable Object. The storage, auth, and rate-limit primitives live in `worker/` as shared modules:
+The Worker is an [Astro](https://astro.build) app (`src/`, built with `@astrojs/cloudflare`): pages and API endpoints live in `src/pages/`, the cross-cutting CORS / rate-limit / security-header stack in `src/middleware.js`, and `src/worker.js` is the custom Worker entry that exports the `RateLimiterDO` Durable Object. The storage, auth, and rate-limit primitives live in `worker/` as shared modules:
 
 | Concern | Implementation |
 |---|---|
@@ -55,7 +55,7 @@ The Worker is an [Astro](https://astro.build) app (`astro/`, built with `@astroj
 | Per-visitor rate limiting | Durable Object per visitor bucket (`RateLimiterDO`, fixed 60s window, IPv6 /64 bucketing) |
 | Publisher token | Worker secret (`ARTIFACT_ACCESS_TOKEN`) |
 | Static assets | Workers Assets via the Astro build (`public/`) |
-| Views | Astro pages & components (`astro/pages/`, `astro/components/`) |
+| Views | Astro pages & components (`src/pages/`, `src/components/`) |
 
 ### Bindings & secrets
 

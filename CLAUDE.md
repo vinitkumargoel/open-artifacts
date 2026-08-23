@@ -21,18 +21,17 @@ npm run migrate:r2 # copy legacy data/artifacts/ disk layout into local R2 sim
 
 ## Architecture
 
-- `astro/` — the app (`srcDir` in astro.config.mjs; the default `src/` was the
-  removed legacy Express app).
-  - `astro/worker.js` — custom Worker entry (`main` in wrangler.toml): calls
+- `src/` — the Astro app (Astro's default srcDir).
+  - `src/worker.js` — custom Worker entry (`main` in wrangler.toml): calls
     `handle()` from `@astrojs/cloudflare/handler` and re-exports `RateLimiterDO`.
-  - `astro/middleware.js` — the cross-cutting stack: CORS preflight,
+  - `src/middleware.js` — the cross-cutting stack: CORS preflight,
     trailing-slash 404, per-visitor rate limiting, error mapping, baseline
     security headers. Read its comments before touching request flow.
-  - `astro/pages/` — routes (pages + API endpoints). `[...path].js` is the
+  - `src/pages/` — routes (pages + API endpoints). `[...path].js` is the
     content-negotiated 404.
-  - `astro/lib/http.js` — config resolution, error envelope, `drainBody`,
-    `authGuard`, `mapError`. `astro/lib/artifacts.js` — shared API handlers.
-  - `astro/components/` — UploadPortal / HistoryDashboard / ArtifactViewer;
+  - `src/lib/http.js` — config resolution, error envelope, `drainBody`,
+    `authGuard`, `mapError`. `src/lib/artifacts.js` — shared API handlers.
+  - `src/components/` — UploadPortal / HistoryDashboard / ArtifactViewer;
     the first two were mechanically ported from legacy template-literal views,
     with `is:inline` keeping CSS/JS byte-for-byte untouched.
 - `worker/` — platform-independent shared modules: `storage.js` (R2 layout
