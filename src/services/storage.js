@@ -324,3 +324,117 @@ export async function deleteArtifact(uuid) {
 
   return deleted;
 }
+
+/**
+ * Lists all artifacts across database and disk storage.
+ * @returns {Promise<Array<object>>}
+ */
+export async function listAllArtifacts() {
+  const artifactMap = new Map();
+
+  // 1. Fetch from MongoDB if connected
+  if (isDbConnected()) {
+    try {
+      const docs = await Artifact.find().sort({ updatedAt: -1, createdAt: -1 }).lean();
+      for (const doc of docs) {
+        if (doc && doc._id && isValidUuid4(doc._id)) {
+          artifactMap.set(doc._id, doc);
+        }
+      }
+    } catch (err) {
+      console.error('[Storage] Error querying DB for all artifacts:', err);
+    }
+  }
+
+  // 2. Scan disk storage directories for any sidecar meta.json (fallback / disk-only artifacts)
+  try {
+    if (fs.existsSync(config.storagePath)) {
+      const entries = await fsPromises.readdir(config.storagePath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory() && entry.name !== 'tmp' && isValidUuid4(entry.name)) {
+          if (!artifactMap.has(entry.name)) {
+            const diskMeta = await readSidecarMeta(entry.name);
+            if (diskMeta && diskMeta._id) {
+              artifactMap.set(diskMeta._id, diskMeta);
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Storage] Error scanning disk for artifacts:', err);
+  }
+
+  // 3. Format and sort list
+  const list = Array.from(artifactMap.values()).map(item => {
+    const versions = Array.isArray(item.versions) ? item.versions : [];
+    const latestVer = item.latestVersion || (versions.length > 0 ? Math.max(...versions.map(v => v.versionNumber || 1)) : 1);
+    const totalSize = versions.reduce((sum, v) => sum + (v.fileSize || 0), 0);
+    const latestVersionObj = versions.find(v => v.versionNumber === latestVer) || versions[versions.length - 1];
+    const latestSize = latestVersionObj?.fileSize || (versions.length > 0 ? versions[0].fileSize : 0);
+
+    return {
+      id: item._id,
+      title: item.title || 'Untitled Artifact',
+      description: item.description || '',
+      latestVersion: latestVer,
+      versionCount: versions.length || latestVer || 1,
+      viewCount: item.viewCount || 0,
+      fileSize: latestSize,
+      totalSize,
+      createdAt: item.createdAt || new Date().toISOString(),
+      updatedAt: item.updatedAt || item.createdAt || new Date().toISOString(),
+      url: `${config.baseUrl}/a/${item._id}`,
+      rawUrl: `${config.baseUrl}/raw/${item._id}/${latestVer}`,
+      versions: versions.map(v => ({
+        versionNumber: v.versionNumber,
+        description: v.description || '',
+        fileSize: v.fileSize || 0,
+        createdAt: v.createdAt || null
+      }))
+    };
+  });
+
+  // Sort by updatedAt descending (newest first)
+  list.sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+
+  return list;
+}
+
+/**
+ * Bulk deletes artifacts by their UUIDs.
+ * @param {string[]} ids
+ * @returns {Promise<{ deletedCount: number, deletedIds: string[], failedIds: string[] }>}
+ */
+export async function bulkDeleteArtifacts(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { deletedCount: 0, deletedIds: [], failedIds: [] };
+  }
+
+  const validIds = ids
+    .filter(id => typeof id === 'string' && isValidUuid4(id.trim()))
+    .map(id => id.trim());
+
+  const deletedIds = [];
+  const failedIds = [];
+
+  for (const id of validIds) {
+    try {
+      const ok = await deleteArtifact(id);
+      if (ok) {
+        deletedIds.push(id);
+      } else {
+        failedIds.push(id);
+      }
+    } catch (err) {
+      console.error(`[Storage] Failed to delete artifact ${id}:`, err);
+      failedIds.push(id);
+    }
+  }
+
+  return {
+    deletedCount: deletedIds.length,
+    deletedIds,
+    failedIds
+  };
+}

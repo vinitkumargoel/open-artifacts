@@ -1,0 +1,1654 @@
+export function renderHistoryHtml() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>OpenArtifacts &bull; Artifact History</title>
+  <style>
+    :root {
+      --bg: #fbfbfb;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f4f4f5;
+      --bg-muted: #e4e4e7;
+      --border: #e4e4e7;
+      --border-subtle: #f0f0f2;
+      --border-focus: #18181b;
+      --text-primary: #18181b;
+      --text-secondary: #52525b;
+      --text-tertiary: #a1a1aa;
+      --accent: #18181b;
+      --accent-hover: #27272a;
+      --accent-blue: #0969da;
+      --accent-blue-bg: #eff6ff;
+      --success: #16a34a;
+      --success-bg: #f0fdf4;
+      --success-border: #bbf7d0;
+      --warning: #d97706;
+      --warning-bg: #fffbeb;
+      --warning-border: #fde68a;
+      --danger: #dc2626;
+      --danger-hover: #b91c1c;
+      --danger-bg: #fef2f2;
+      --danger-border: #fecaca;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.05);
+      --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.1);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top Navigation */
+    .top-nav {
+      height: 52px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      z-index: 50;
+      position: sticky;
+      top: 0;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 26px;
+      height: 26px;
+      background: #18181b;
+      color: #ffffff;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      text-decoration: none;
+      transition: transform 0.15s;
+    }
+    .brand-mark:hover { transform: scale(1.05); }
+
+    .brand-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+      text-decoration: none;
+    }
+
+    .brand-separator {
+      color: var(--text-tertiary);
+      font-size: 13px;
+    }
+
+    .brand-sub {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-btn {
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 5px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+
+    .nav-btn:hover {
+      border-color: var(--text-primary);
+      color: var(--text-primary);
+    }
+
+    .nav-btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    .nav-btn-primary:hover {
+      background: var(--accent-hover);
+      color: #ffffff;
+    }
+
+    .token-pill {
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 4px 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      transition: all 0.15s;
+    }
+
+    .token-pill:hover {
+      border-color: var(--text-secondary);
+    }
+
+    .token-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-tertiary);
+    }
+
+    .token-dot.active {
+      background: var(--success);
+    }
+
+    /* Main Container */
+    .main-container {
+      max-width: 1280px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* Header Bar */
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .header-info h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    .header-info p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .stats-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .stat-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 6px 12px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .stat-badge strong {
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+
+    /* Controls & Filter Toolbar */
+    .toolbar-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .toolbar-main {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 260px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      width: 15px;
+      height: 15px;
+      color: var(--text-tertiary);
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      height: 36px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0 34px 0 34px;
+      font-size: 13px;
+      color: var(--text-primary);
+      outline: none;
+      transition: all 0.15s;
+    }
+
+    .search-input:focus {
+      background: var(--bg-surface);
+      border-color: var(--border-focus);
+    }
+
+    .search-clear-btn {
+      position: absolute;
+      right: 10px;
+      background: none;
+      border: none;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      font-size: 14px;
+      display: none;
+      padding: 4px;
+    }
+    .search-clear-btn:hover { color: var(--text-primary); }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .select-control {
+      height: 36px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0 10px;
+      font-size: 12.5px;
+      color: var(--text-primary);
+      outline: none;
+      cursor: pointer;
+      font-family: var(--font-sans);
+    }
+    .select-control:focus { border-color: var(--border-focus); }
+
+    .view-switcher {
+      display: flex;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 2px;
+      gap: 2px;
+      height: 36px;
+    }
+
+    .view-switch-btn {
+      background: transparent;
+      border: none;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.12s;
+    }
+    .view-switch-btn.active {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-weight: 600;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Selection Action Banner */
+    .selection-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 8px 14px;
+      font-size: 12.5px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .selection-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .checkbox-custom {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+
+    .btn-delete-bulk {
+      background: var(--danger);
+      color: #ffffff;
+      border: 1px solid var(--danger);
+      border-radius: var(--radius-sm);
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+
+    .btn-delete-bulk:hover:not(:disabled) {
+      background: var(--danger-hover);
+    }
+
+    .btn-delete-bulk:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-text {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 0 4px;
+    }
+    .btn-text:hover { color: var(--text-primary); }
+
+    /* Artifact Table */
+    .table-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .artifact-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    .artifact-table th {
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .artifact-table td {
+      padding: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+      color: var(--text-primary);
+    }
+
+    .artifact-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .artifact-table tr:hover td {
+      background: #fafafa;
+    }
+
+    .artifact-table tr.selected td {
+      background: #f4f7fb;
+    }
+
+    .col-check {
+      width: 40px;
+      text-align: center;
+    }
+
+    .item-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 220px;
+    }
+
+    .item-title-link {
+      font-weight: 600;
+      font-size: 13.5px;
+      color: var(--text-primary);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .item-title-link:hover {
+      color: var(--accent-blue);
+      text-decoration: underline;
+    }
+
+    .item-desc {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 480px;
+    }
+
+    .uuid-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 3px 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .uuid-badge:hover {
+      border-color: var(--text-secondary);
+      color: var(--text-primary);
+    }
+
+    .pill-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 12px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .pill-version {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+      color: #166534;
+    }
+
+    .date-cell {
+      font-size: 12px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .date-sub {
+      font-size: 10.5px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    .actions-cell {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .row-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .action-btn {
+      height: 28px;
+      padding: 0 8px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .action-btn:hover {
+      border-color: var(--text-primary);
+      color: var(--text-primary);
+    }
+
+    .action-btn-danger {
+      color: var(--danger);
+      border-color: var(--danger-border);
+      background: #ffffff;
+    }
+    .action-btn-danger:hover {
+      background: var(--danger-bg);
+      border-color: var(--danger);
+      color: var(--danger-hover);
+    }
+
+    /* Cards Grid View */
+    .grid-container {
+      display: none;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .artifact-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .artifact-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: #cbd5e1;
+    }
+    .artifact-card.selected {
+      border-color: var(--accent);
+      background: #f9fbfd;
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-decoration: none;
+      line-height: 1.3;
+    }
+    .card-title:hover {
+      color: var(--accent-blue);
+      text-decoration: underline;
+    }
+
+    .card-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      flex: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 10px;
+    }
+
+    .card-footer-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    /* Empty & Loading States */
+    .empty-state {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 60px 20px;
+      text-align: center;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .empty-state-icon {
+      width: 48px;
+      height: 48px;
+      color: var(--text-tertiary);
+    }
+
+    .empty-state-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .empty-state-sub {
+      font-size: 13px;
+      color: var(--text-secondary);
+      max-width: 400px;
+    }
+
+    .loading-state {
+      padding: 60px 20px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn 0.15s ease-out;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 480px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      animation: slideUp 0.18s ease-out;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .modal-icon-danger {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--danger-bg);
+      color: var(--danger);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .modal-title-group h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .modal-title-group p {
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+
+    .modal-items-list {
+      max-height: 140px;
+      overflow-y: auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .modal-item-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-primary);
+    }
+
+    .modal-token-input {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .modal-token-input label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .modal-token-input input {
+      width: 100%;
+      height: 36px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0 10px;
+      font-size: 12.5px;
+      font-family: var(--font-mono);
+      outline: none;
+    }
+    .modal-token-input input:focus {
+      border-color: var(--border-focus);
+      background: var(--bg-surface);
+    }
+
+    .modal-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .btn-modal-cancel {
+      height: 34px;
+      padding: 0 14px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+    .btn-modal-cancel:hover { background: var(--bg-subtle); }
+
+    .btn-modal-delete {
+      height: 34px;
+      padding: 0 16px;
+      background: var(--danger);
+      border: 1px solid var(--danger);
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #ffffff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-modal-delete:hover:not(:disabled) { background: var(--danger-hover); }
+    .btn-modal-delete:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #18181b;
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: var(--radius-md);
+      font-size: 12.5px;
+      font-weight: 500;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.2s ease;
+      z-index: 1000;
+      max-width: 360px;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 768px) {
+      .main-container { padding: 16px 12px; }
+      .col-hide-mobile { display: none; }
+      .toolbar-main { flex-direction: column; align-items: stretch; }
+      .filter-group { justify-content: space-between; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="top-nav">
+    <div class="brand-section">
+      <a href="/upload" class="brand-mark">&lambda;</a>
+      <a href="/upload" class="brand-title">OpenArtifacts</a>
+      <span class="brand-separator">/</span>
+      <span class="brand-sub">History</span>
+    </div>
+
+    <div class="nav-actions">
+      <!-- Refresh Button -->
+      <button class="nav-btn" onclick="fetchArtifacts(true)" id="refreshBtn" title="Refresh artifact list">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        <span>Refresh</span>
+      </button>
+
+      <!-- Go to Studio -->
+      <a href="/upload" class="nav-btn nav-btn-primary">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
+        <span>New Artifact</span>
+      </a>
+
+      <!-- Token Status Pill -->
+      <div class="token-pill" onclick="promptToken()" title="Set or update ARTIFACT_ACCESS_TOKEN for administrative actions">
+        <div class="token-dot" id="tokenDot"></div>
+        <span id="tokenDisplay">token: unset</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-container">
+
+    <!-- Header & Statistics -->
+    <div class="dashboard-header">
+      <div class="header-info">
+        <h1>All Published Artifacts</h1>
+        <p>Browse, preview, inspect, and manage versioned artifacts hosted on this instance.</p>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-badge">
+          <span>Artifacts:</span>
+          <strong id="statArtifactsCount">0</strong>
+        </div>
+        <div class="stat-badge">
+          <span>Total Versions:</span>
+          <strong id="statVersionsCount">0</strong>
+        </div>
+        <div class="stat-badge">
+          <span>Storage:</span>
+          <strong id="statStorageSize">0 KB</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toolbar: Search, Sort, View Modes -->
+    <div class="toolbar-card">
+      <div class="toolbar-main">
+        <div class="search-box">
+          <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="2"></circle><path d="M21 21l-4.35-4.35" stroke-width="2" stroke-linecap="round"></path></svg>
+          <input type="text" id="searchInput" class="search-input" placeholder="Search by title, description, or UUID... (Press '/' to focus)" oninput="handleSearch(this.value)">
+          <button class="search-clear-btn" id="searchClearBtn" onclick="clearSearch()">&times;</button>
+        </div>
+
+        <div class="filter-group">
+          <!-- Sort Dropdown -->
+          <select id="sortSelect" class="select-control" onchange="handleSort(this.value)">
+            <option value="updated_desc">Recently Updated</option>
+            <option value="created_desc">Recently Created</option>
+            <option value="title_asc">Title (A &rarr; Z)</option>
+            <option value="title_desc">Title (Z &rarr; A)</option>
+            <option value="versions_desc">Most Versions</option>
+            <option value="size_desc">Largest Size</option>
+          </select>
+
+          <!-- Layout Switcher -->
+          <div class="view-switcher">
+            <button class="view-switch-btn active" id="btnViewTable" onclick="setViewMode('table')" title="Table View">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+              <span>Table</span>
+            </button>
+            <button class="view-switch-btn" id="btnViewGrid" onclick="setViewMode('grid')" title="Cards Grid View">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+              <span>Grid</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Selection Action Bar -->
+      <div class="selection-bar" id="selectionBar">
+        <div class="selection-left">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500;">
+            <input type="checkbox" id="masterCheckbox" class="checkbox-custom" onchange="toggleSelectAll(this.checked)">
+            <span>Select All</span>
+          </label>
+          <span style="color: var(--border);">&bull;</span>
+          <span id="selectionCountText" style="color: var(--text-secondary); font-weight: 500;">0 selected</span>
+          <button class="btn-text" onclick="clearSelection()">Deselect all</button>
+        </div>
+
+        <button class="btn-delete-bulk" id="bulkDeleteBtn" onclick="openBulkDeleteModal()" disabled>
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          <span id="bulkDeleteBtnText">Delete Selected</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-state" id="loadingState">
+      <div class="spinner"></div>
+      <div>Loading artifact catalog...</div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="emptyState">
+      <svg class="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+      <div class="empty-state-title" id="emptyTitle">No artifacts found</div>
+      <div class="empty-state-sub" id="emptySub">No published artifacts exist on this server yet. Create your first interactive application in Studio Publisher.</div>
+      <a href="/upload" class="nav-btn nav-btn-primary" style="margin-top: 8px;">&plus; Publish First Artifact</a>
+    </div>
+
+    <!-- Table View Container -->
+    <div class="table-container" id="tableViewWrap" style="display: none;">
+      <table class="artifact-table">
+        <thead>
+          <tr>
+            <th class="col-check"></th>
+            <th>Artifact &bull; Details</th>
+            <th class="col-hide-mobile">UUID</th>
+            <th>Version</th>
+            <th class="col-hide-mobile">Size</th>
+            <th>Last Updated</th>
+            <th class="actions-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Grid View Container -->
+    <div class="grid-container" id="gridViewWrap"></div>
+
+  </main>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-backdrop" id="deleteModal" onclick="handleModalBackdrop(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-icon-danger">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        </div>
+        <div class="modal-title-group">
+          <h3 id="modalTitle">Confirm Deletion</h3>
+          <p id="modalDescription">Are you sure you want to permanently delete the selected artifact(s)? This action cannot be undone.</p>
+        </div>
+      </div>
+
+      <!-- Affected list -->
+      <div>
+        <div style="font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Artifacts to be permanently removed:</div>
+        <div class="modal-items-list" id="modalItemsList"></div>
+      </div>
+
+      <!-- Inline Token Input (Shown if token not set in localStorage) -->
+      <div class="modal-token-input" id="modalTokenWrap">
+        <label for="modalTokenInput">Access Token <span style="font-weight: 400; color: var(--text-tertiary);">(ARTIFACT_ACCESS_TOKEN)</span></label>
+        <input type="password" id="modalTokenInput" placeholder="Enter token to authorize deletion">
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-modal-cancel" onclick="closeDeleteModal()">Cancel</button>
+        <button type="button" class="btn-modal-delete" id="confirmDeleteBtn" onclick="executeDeletion()">
+          <span>Delete Permanently</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Notice</div>
+
+  <script>
+    let rawArtifacts = [];
+    let displayedArtifacts = [];
+    let selectedIds = new Set();
+    let pendingDeletionIds = [];
+    let currentViewMode = localStorage.getItem('open_artifacts_view_mode') || 'table';
+
+    // Token Management
+    function getStoredToken() {
+      return localStorage.getItem('open_artifacts_token') || sessionStorage.getItem('open_artifacts_token') || '';
+    }
+
+    function syncTokenDisplay() {
+      const token = getStoredToken();
+      const dot = document.getElementById('tokenDot');
+      const text = document.getElementById('tokenDisplay');
+      if (token) {
+        dot.classList.add('active');
+        text.textContent = 'token: active';
+      } else {
+        dot.classList.remove('active');
+        text.textContent = 'token: unset';
+      }
+    }
+
+    function promptToken() {
+      const current = getStoredToken();
+      const res = prompt('Enter ARTIFACT_ACCESS_TOKEN for administrative actions:', current);
+      if (res !== null) {
+        const trimmed = res.trim();
+        localStorage.setItem('open_artifacts_token', trimmed);
+        syncTokenDisplay();
+        showToast(trimmed ? 'Access token saved' : 'Access token cleared');
+      }
+    }
+
+    // View Switching
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      localStorage.setItem('open_artifacts_view_mode', mode);
+
+      const btnTable = document.getElementById('btnViewTable');
+      const btnGrid = document.getElementById('btnViewGrid');
+      const tableWrap = document.getElementById('tableViewWrap');
+      const gridWrap = document.getElementById('gridViewWrap');
+
+      if (mode === 'table') {
+        btnTable.classList.add('active');
+        btnGrid.classList.remove('active');
+        if (displayedArtifacts.length > 0) {
+          tableWrap.style.display = 'block';
+          gridWrap.style.display = 'none';
+        }
+      } else {
+        btnTable.classList.remove('active');
+        btnGrid.classList.add('active');
+        if (displayedArtifacts.length > 0) {
+          tableWrap.style.display = 'none';
+          gridWrap.style.display = 'grid';
+        }
+      }
+    }
+
+    // Formatters
+    function formatBytes(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function formatRelativeDate(isoStr) {
+      if (!isoStr) return '';
+      const date = new Date(isoStr);
+      if (isNaN(date.getTime())) return '';
+      const now = new Date();
+      const diffMs = now - date;
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHour = Math.floor(diffMin / 60);
+      const diffDay = Math.floor(diffHour / 24);
+
+      if (diffSec < 60) return 'just now';
+      if (diffMin < 60) return diffMin + 'm ago';
+      if (diffHour < 24) return diffHour + 'h ago';
+      if (diffDay < 7) return diffDay + 'd ago';
+      return date.toLocaleDateString();
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]);
+    }
+
+    // Data Fetching
+    async function fetchArtifacts(isRefresh = false) {
+      const loading = document.getElementById('loadingState');
+      const tableWrap = document.getElementById('tableViewWrap');
+      const gridWrap = document.getElementById('gridViewWrap');
+      const empty = document.getElementById('emptyState');
+      const refreshBtn = document.getElementById('refreshBtn');
+
+      if (isRefresh && refreshBtn) {
+        refreshBtn.classList.add('loading');
+      }
+
+      if (!isRefresh) {
+        loading.style.display = 'flex';
+        tableWrap.style.display = 'none';
+        gridWrap.style.display = 'none';
+        empty.style.display = 'none';
+      }
+
+      try {
+        const res = await fetch('/api/artifacts', {
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+
+        if (!res.ok) throw new Error('Failed to fetch artifact directory');
+        const data = await res.json();
+        rawArtifacts = data.artifacts || [];
+
+        // Prune any selected IDs that no longer exist
+        const currentIdSet = new Set(rawArtifacts.map(a => a.id));
+        for (const id of selectedIds) {
+          if (!currentIdSet.has(id)) selectedIds.delete(id);
+        }
+
+        updateStats(rawArtifacts);
+        applyFiltersAndSort();
+
+        if (isRefresh) showToast('Artifacts updated (' + rawArtifacts.length + ' total)');
+      } catch (err) {
+        showToast('Error: ' + err.message);
+      } finally {
+        loading.style.display = 'none';
+        if (refreshBtn) refreshBtn.classList.remove('loading');
+      }
+    }
+
+    function updateStats(list) {
+      document.getElementById('statArtifactsCount').textContent = list.length;
+      const totalVersions = list.reduce((acc, a) => acc + (a.versionCount || a.latestVersion || 1), 0);
+      document.getElementById('statVersionsCount').textContent = totalVersions;
+      const totalBytes = list.reduce((acc, a) => acc + (a.totalSize || a.fileSize || 0), 0);
+      document.getElementById('statStorageSize').textContent = formatBytes(totalBytes);
+    }
+
+    // Search and Sort
+    function handleSearch(query) {
+      const clearBtn = document.getElementById('searchClearBtn');
+      clearBtn.style.display = query ? 'block' : 'none';
+      applyFiltersAndSort();
+    }
+
+    function clearSearch() {
+      const input = document.getElementById('searchInput');
+      input.value = '';
+      document.getElementById('searchClearBtn').style.display = 'none';
+      applyFiltersAndSort();
+      input.focus();
+    }
+
+    function handleSort() {
+      applyFiltersAndSort();
+    }
+
+    function applyFiltersAndSort() {
+      const query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+      const sortVal = document.getElementById('sortSelect').value;
+
+      let filtered = rawArtifacts.filter(item => {
+        if (!query) return true;
+        const t = (item.title || '').toLowerCase();
+        const d = (item.description || '').toLowerCase();
+        const id = (item.id || '').toLowerCase();
+        return t.includes(query) || d.includes(query) || id.includes(query);
+      });
+
+      filtered.sort((a, b) => {
+        if (sortVal === 'updated_desc') {
+          return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+        } else if (sortVal === 'created_desc') {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        } else if (sortVal === 'title_asc') {
+          return (a.title || '').localeCompare(b.title || '');
+        } else if (sortVal === 'title_desc') {
+          return (b.title || '').localeCompare(a.title || '');
+        } else if (sortVal === 'versions_desc') {
+          return (b.versionCount || 1) - (a.versionCount || 1);
+        } else if (sortVal === 'size_desc') {
+          return (b.totalSize || b.fileSize || 0) - (a.totalSize || a.fileSize || 0);
+        }
+        return 0;
+      });
+
+      displayedArtifacts = filtered;
+      renderArtifacts();
+    }
+
+    // Rendering Table & Grid
+    function renderArtifacts() {
+      const tableWrap = document.getElementById('tableViewWrap');
+      const gridWrap = document.getElementById('gridViewWrap');
+      const empty = document.getElementById('emptyState');
+      const tableBody = document.getElementById('tableBody');
+      const emptyTitle = document.getElementById('emptyTitle');
+      const emptySub = document.getElementById('emptySub');
+
+      if (displayedArtifacts.length === 0) {
+        tableWrap.style.display = 'none';
+        gridWrap.style.display = 'none';
+        empty.style.display = 'flex';
+
+        const query = document.getElementById('searchInput').value.trim();
+        if (query) {
+          emptyTitle.textContent = 'No matching artifacts';
+          emptySub.textContent = 'No artifacts match the search query "' + query + '".';
+        } else {
+          emptyTitle.textContent = 'No artifacts published yet';
+          emptySub.textContent = 'Publish standalone HTML artifacts from the Studio to build your gallery.';
+        }
+        updateSelectionUI();
+        return;
+      }
+
+      empty.style.display = 'none';
+
+      // 1. Render Table
+      tableBody.innerHTML = displayedArtifacts.map(item => {
+        const isSelected = selectedIds.has(item.id);
+        const latestVer = item.latestVersion || 1;
+        const verCount = item.versionCount || latestVer;
+        const sizeStr = formatBytes(item.fileSize || item.totalSize || 0);
+        const relDate = formatRelativeDate(item.updatedAt || item.createdAt);
+        const fullDate = (item.updatedAt || item.createdAt) ? new Date(item.updatedAt || item.createdAt).toLocaleString() : '';
+
+        return \`
+          <tr class="\${isSelected ? 'selected' : ''}" id="row-\${escapeHtml(item.id)}">
+            <td class="col-check">
+              <input type="checkbox" class="checkbox-custom row-checkbox" data-id="\${escapeHtml(item.id)}" \${isSelected ? 'checked' : ''} onchange="toggleItemSelection('\${escapeHtml(item.id)}', this.checked)">
+            </td>
+            <td>
+              <div class="item-title-wrap">
+                <a href="/a/\${escapeHtml(item.id)}" class="item-title-link" target="_blank">\${escapeHtml(item.title || 'Untitled Artifact')}</a>
+                \${item.description ? \`<div class="item-desc" title="\${escapeHtml(item.description)}">\${escapeHtml(item.description)}</div>\` : ''}
+              </div>
+            </td>
+            <td class="col-hide-mobile">
+              <span class="uuid-badge" onclick="copyText('\${escapeHtml(item.id)}', 'UUID copied')" title="Click to copy UUID">
+                <span>\${escapeHtml(item.id.slice(0, 8))}...</span>
+                <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>
+              </span>
+            </td>
+            <td>
+              <span class="pill-badge pill-version">v\${escapeHtml(String(latestVer))} \${verCount > 1 ? '&bull; ' + verCount + ' vers' : ''}</span>
+            </td>
+            <td class="col-hide-mobile">
+              <span class="pill-badge">\${escapeHtml(sizeStr)}</span>
+            </td>
+            <td class="date-cell" title="\${escapeHtml(fullDate)}">
+              <div>\${escapeHtml(relDate)}</div>
+              <div class="date-sub col-hide-mobile">\${escapeHtml(fullDate.split(',')[0])}</div>
+            </td>
+            <td class="actions-cell">
+              <div class="row-actions">
+                <a href="/a/\${escapeHtml(item.id)}" target="_blank" class="action-btn" title="Open App in viewer">Open &rarr;</a>
+                <a href="/upload" onclick="openStudioWithId('\${escapeHtml(item.id)}'); return false;" class="action-btn" title="Publish new version">+ Ver</a>
+                <button type="button" class="action-btn action-btn-danger" onclick="openSingleDeleteModal('\${escapeHtml(item.id)}')" title="Delete artifact permanently">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+        \`;
+      }).join('');
+
+      // 2. Render Grid
+      gridWrap.innerHTML = displayedArtifacts.map(item => {
+        const isSelected = selectedIds.has(item.id);
+        const latestVer = item.latestVersion || 1;
+        const sizeStr = formatBytes(item.fileSize || item.totalSize || 0);
+        const relDate = formatRelativeDate(item.updatedAt || item.createdAt);
+
+        return \`
+          <div class="artifact-card \${isSelected ? 'selected' : ''}" id="card-\${escapeHtml(item.id)}">
+            <div class="card-top">
+              <input type="checkbox" class="checkbox-custom" data-id="\${escapeHtml(item.id)}" \${isSelected ? 'checked' : ''} onchange="toggleItemSelection('\${escapeHtml(item.id)}', this.checked)">
+              <span class="pill-badge pill-version">v\${escapeHtml(String(latestVer))}</span>
+            </div>
+
+            <div>
+              <a href="/a/\${escapeHtml(item.id)}" target="_blank" class="card-title">\${escapeHtml(item.title || 'Untitled Artifact')}</a>
+            </div>
+
+            <div class="card-desc">\${escapeHtml(item.description || 'No description provided.')}</div>
+
+            <div class="card-meta-row">
+              <span class="uuid-badge" onclick="copyText('\${escapeHtml(item.id)}', 'UUID copied')">\${escapeHtml(item.id.slice(0, 8))}...</span>
+              <span>\${escapeHtml(sizeStr)} &bull; \${escapeHtml(relDate)}</span>
+            </div>
+
+            <div class="card-footer-actions">
+              <a href="/a/\${escapeHtml(item.id)}" target="_blank" class="action-btn">Open &rarr;</a>
+              <button type="button" class="action-btn action-btn-danger" onclick="openSingleDeleteModal('\${escapeHtml(item.id)}')">Delete</button>
+            </div>
+          </div>
+        \`;
+      }).join('');
+
+      setViewMode(currentViewMode);
+      updateSelectionUI();
+    }
+
+    // Selection Handling
+    function toggleItemSelection(id, isSelected) {
+      if (isSelected) {
+        selectedIds.add(id);
+      } else {
+        selectedIds.delete(id);
+      }
+      updateSelectionUI();
+      highlightRow(id, isSelected);
+    }
+
+    function toggleSelectAll(checked) {
+      if (checked) {
+        displayedArtifacts.forEach(item => selectedIds.add(item.id));
+      } else {
+        displayedArtifacts.forEach(item => selectedIds.delete(item.id));
+      }
+      renderArtifacts();
+    }
+
+    function clearSelection() {
+      selectedIds.clear();
+      renderArtifacts();
+    }
+
+    function highlightRow(id, isSelected) {
+      const row = document.getElementById('row-' + id);
+      if (row) row.classList.toggle('selected', isSelected);
+      const card = document.getElementById('card-' + id);
+      if (card) card.classList.toggle('selected', isSelected);
+    }
+
+    function updateSelectionUI() {
+      const count = selectedIds.size;
+      const total = displayedArtifacts.length;
+      const countText = document.getElementById('selectionCountText');
+      const deleteBtn = document.getElementById('bulkDeleteBtn');
+      const deleteBtnText = document.getElementById('bulkDeleteBtnText');
+      const masterCheckbox = document.getElementById('masterCheckbox');
+
+      countText.textContent = count + (count === 1 ? ' artifact selected' : ' artifacts selected');
+      deleteBtn.disabled = count === 0;
+      deleteBtnText.textContent = count > 0 ? 'Delete Selected (' + count + ')' : 'Delete Selected';
+
+      if (total === 0 || count === 0) {
+        masterCheckbox.checked = false;
+        masterCheckbox.indeterminate = false;
+      } else if (count === total) {
+        masterCheckbox.checked = true;
+        masterCheckbox.indeterminate = false;
+      } else {
+        masterCheckbox.checked = false;
+        masterCheckbox.indeterminate = true;
+      }
+    }
+
+    function openStudioWithId(id) {
+      sessionStorage.setItem('open_artifacts_target_id', id);
+      window.location.href = '/upload?update=' + encodeURIComponent(id);
+    }
+
+    // Modal & Delete Actions
+    function openSingleDeleteModal(id) {
+      const item = rawArtifacts.find(a => a.id === id);
+      if (!item) return;
+
+      pendingDeletionIds = [id];
+      document.getElementById('modalTitle').textContent = 'Delete Artifact';
+      document.getElementById('modalDescription').textContent = 'Are you sure you want to permanently delete "' + (item.title || 'Untitled') + '"? All versions and files will be permanently erased.';
+
+      const listEl = document.getElementById('modalItemsList');
+      listEl.innerHTML = \`
+        <div class="modal-item-row">
+          <strong>\${escapeHtml(item.title || 'Untitled')}</strong>
+          <span>v\${escapeHtml(String(item.latestVersion || 1))}</span>
+        </div>
+        <div style="font-size: 11px; color: var(--text-secondary);">ID: \${escapeHtml(item.id)}</div>
+      \`;
+
+      setupModalToken();
+      document.getElementById('deleteModal').style.display = 'flex';
+    }
+
+    function openBulkDeleteModal() {
+      if (selectedIds.size === 0) return;
+
+      pendingDeletionIds = Array.from(selectedIds);
+      const count = pendingDeletionIds.length;
+      document.getElementById('modalTitle').textContent = 'Delete ' + count + ' Artifacts';
+      document.getElementById('modalDescription').textContent = 'Are you sure you want to permanently delete ' + count + ' selected artifacts? All corresponding versions and storage files will be erased.';
+
+      const listEl = document.getElementById('modalItemsList');
+      listEl.innerHTML = pendingDeletionIds.map(id => {
+        const item = rawArtifacts.find(a => a.id === id);
+        const title = item ? (item.title || 'Untitled') : id;
+        return \`
+          <div class="modal-item-row">
+            <span>\${escapeHtml(title)}</span>
+            <span style="font-size: 10.5px; color: var(--text-tertiary);">\${escapeHtml(id.slice(0, 8))}...</span>
+          </div>
+        \`;
+      }).join('');
+
+      setupModalToken();
+      document.getElementById('deleteModal').style.display = 'flex';
+    }
+
+    function setupModalToken() {
+      const stored = getStoredToken();
+      const tokenWrap = document.getElementById('modalTokenWrap');
+      const tokenInput = document.getElementById('modalTokenInput');
+      if (stored) {
+        tokenInput.value = stored;
+        tokenWrap.style.display = 'none';
+      } else {
+        tokenInput.value = '';
+        tokenWrap.style.display = 'flex';
+      }
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').style.display = 'none';
+      pendingDeletionIds = [];
+    }
+
+    function handleModalBackdrop(e) {
+      if (e.target.id === 'deleteModal') {
+        closeDeleteModal();
+      }
+    }
+
+    async function executeDeletion() {
+      if (pendingDeletionIds.length === 0) return;
+
+      const tokenInput = document.getElementById('modalTokenInput');
+      const token = (tokenInput.value || getStoredToken()).trim();
+
+      if (!token) {
+        showToast('Access token is required to delete artifacts');
+        tokenInput.focus();
+        return;
+      }
+
+      // Save token if entered in modal
+      localStorage.setItem('open_artifacts_token', token);
+      syncTokenDisplay();
+
+      const btn = document.getElementById('confirmDeleteBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span><span>Deleting...</span>';
+
+      try {
+        let res;
+        if (pendingDeletionIds.length === 1) {
+          // Single Delete
+          const id = pendingDeletionIds[0];
+          res = await fetch('/api/artifacts/' + encodeURIComponent(id), {
+            method: 'DELETE',
+            headers: {
+              'Authorization': 'Bearer ' + token,
+              'Content-Type': 'application/json'
+            }
+          });
+        } else {
+          // Bulk Delete
+          res = await fetch('/api/artifacts/bulk-delete', {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + token,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ids: pendingDeletionIds })
+          });
+        }
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error?.message || 'Deletion failed');
+        }
+
+        // Clean up from selection and local list
+        pendingDeletionIds.forEach(id => selectedIds.delete(id));
+        const deletedSet = new Set(pendingDeletionIds);
+        rawArtifacts = rawArtifacts.filter(a => !deletedSet.has(a.id));
+
+        closeDeleteModal();
+        updateStats(rawArtifacts);
+        applyFiltersAndSort();
+        showToast('Successfully deleted ' + pendingDeletionIds.length + ' artifact(s)');
+      } catch (err) {
+        showToast('Delete error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>Delete Permanently</span>';
+      }
+    }
+
+    // Clipboard Helper
+    function copyText(text, successMsg) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(successMsg || 'Copied to clipboard');
+      }).catch(() => {
+        prompt('Copy text:', text);
+      });
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    // Global Keybindings
+    window.addEventListener('keydown', (e) => {
+      // Focus Search with '/'
+      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
+        e.preventDefault();
+        document.getElementById('searchInput').focus();
+      }
+      // Select All with Cmd/Ctrl + A when not in input
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+        e.preventDefault();
+        toggleSelectAll(true);
+      }
+      // Escape closes modal / clears search
+      if (e.key === 'Escape') {
+        closeDeleteModal();
+        if (document.activeElement === document.getElementById('searchInput')) {
+          document.activeElement.blur();
+        }
+      }
+      // Delete key triggers bulk delete if items selected
+      if ((e.key === 'Delete' || e.key === 'Backspace') && (e.metaKey || e.ctrlKey) && selectedIds.size > 0 && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+        e.preventDefault();
+        openBulkDeleteModal();
+      }
+    });
+
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', () => {
+      syncTokenDisplay();
+      fetchArtifacts();
+    });
+  </script>
+</body>
+</html>`;
+}

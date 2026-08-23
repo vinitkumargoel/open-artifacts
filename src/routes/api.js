@@ -1,11 +1,35 @@
 import express from 'express';
 import { authGuard } from '../middleware/auth.js';
 import { uploadLimiter, readLimiter } from '../middleware/rateLimit.js';
-import { uploadMiddleware, processArtifactUpload, getArtifactMetadata, deleteArtifact } from '../services/storage.js';
+import {
+  uploadMiddleware,
+  processArtifactUpload,
+  getArtifactMetadata,
+  deleteArtifact,
+  listAllArtifacts,
+  bulkDeleteArtifacts
+} from '../services/storage.js';
 import { isValidUuid4 } from '../utils/sanitize.js';
 import { config } from '../config/env.js';
 
 const router = express.Router();
+
+/**
+ * GET /api/artifacts
+ * Returns all artifacts metadata for history dashboard.
+ */
+router.get('/artifacts', readLimiter, async (req, res, next) => {
+  try {
+    const artifacts = await listAllArtifacts();
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return res.status(200).json({
+      artifacts,
+      count: artifacts.length
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
  * POST /api/artifacts
@@ -149,5 +173,50 @@ router.delete('/artifacts/:uuid', authGuard, async (req, res, next) => {
     next(err);
   }
 });
+
+/**
+ * POST /api/artifacts/bulk-delete and DELETE /api/artifacts
+ * Bulk deletion of artifacts and all their versions.
+ */
+const handleBulkDelete = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'Request body must include a non-empty array of artifact UUIDs in "ids".',
+          status: 400
+        }
+      });
+    }
+
+    // Validate every ID is UUID v4
+    const invalidIds = ids.filter(id => typeof id !== 'string' || !isValidUuid4(id.trim()));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_UUID_FORMAT',
+          message: `Found invalid UUID-4 format in ids: ${invalidIds.slice(0, 3).join(', ')}${invalidIds.length > 3 ? '...' : ''}`,
+          status: 400
+        }
+      });
+    }
+
+    const result = await bulkDeleteArtifacts(ids);
+    return res.status(200).json({
+      success: true,
+      deletedCount: result.deletedCount,
+      deletedIds: result.deletedIds,
+      failedIds: result.failedIds,
+      message: `Successfully deleted ${result.deletedCount} artifact(s).`
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+router.post('/artifacts/bulk-delete', authGuard, handleBulkDelete);
+router.delete('/artifacts', authGuard, handleBulkDelete);
 
 export default router;

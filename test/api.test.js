@@ -186,16 +186,129 @@ describe('OpenArtifacts End-to-End API Test Suite', () => {
     expect(res.text).toContain('dropzone');
   });
 
-  it('DELETE /api/artifacts/:uuid removes artifact from DB and filesystem', async () => {
+  it('GET /history serves the artifact history catalog page', async () => {
+    const res = await request(app).get('/history');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(res.text).toContain('All Published Artifacts');
+    expect(res.text).toContain('deleteModal');
+  });
+
+  it('GET /api/artifacts returns catalog of published artifacts', async () => {
+    const res = await request(app).get('/api/artifacts');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('artifacts');
+    expect(res.body).toHaveProperty('count');
+    expect(Array.isArray(res.body.artifacts)).toBe(true);
+    expect(res.body.count).toBeGreaterThan(0);
+    const found = res.body.artifacts.find(a => a.id === createdUuid);
+    expect(found).toBeDefined();
+    expect(found.title).toBe('Q3 Sales Analytics');
+    expect(found.latestVersion).toBe(2);
+  });
+
+  it('POST /api/artifacts/bulk-delete rejects unauthorized requests (401)', async () => {
     const res = await request(app)
-      .delete(`/api/artifacts/${createdUuid}`)
+      .post('/api/artifacts/bulk-delete')
+      .send({ ids: [createdUuid] });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+
+  it('POST /api/artifacts/bulk-delete rejects empty or invalid ids array (400)', async () => {
+    const resEmpty = await request(app)
+      .post('/api/artifacts/bulk-delete')
+      .set('Authorization', `Bearer ${AUTH_TOKEN}`)
+      .send({ ids: [] });
+
+    expect(resEmpty.status).toBe(400);
+    expect(resEmpty.body.error.code).toBe('INVALID_REQUEST');
+
+    const resInvalid = await request(app)
+      .post('/api/artifacts/bulk-delete')
+      .set('Authorization', `Bearer ${AUTH_TOKEN}`)
+      .send({ ids: ['not-a-valid-uuid'] });
+
+    expect(resInvalid.status).toBe(400);
+    expect(resInvalid.body.error.code).toBe('INVALID_UUID_FORMAT');
+  });
+
+  it('POST /api/artifacts/bulk-delete successfully bulk deletes artifacts', async () => {
+    // First create a second artifact to test bulk deletion of multiple items
+    const sampleHtml = `<!DOCTYPE html><html><head><title>Batch Artifact</title></head><body><h1>Batch Item</h1></body></html>`;
+    const createRes = await request(app)
+      .post('/api/artifacts')
+      .set('Authorization', `Bearer ${AUTH_TOKEN}`)
+      .field('title', 'Batch Item For Deletion')
+      .attach('file', Buffer.from(sampleHtml), 'batch.html');
+
+    expect(createRes.status).toBe(201);
+    const secondUuid = createRes.body.id;
+
+    // Delete both createdUuid and secondUuid
+    const res = await request(app)
+      .post('/api/artifacts/bulk-delete')
+      .set('Authorization', `Bearer ${AUTH_TOKEN}`)
+      .send({ ids: [createdUuid, secondUuid] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.deletedCount).toBe(2);
+    expect(res.body.deletedIds).toContain(createdUuid);
+    expect(res.body.deletedIds).toContain(secondUuid);
+
+    // Verify disk directories are removed
+    const path1 = path.join(config.storagePath, createdUuid);
+    const path2 = path.join(config.storagePath, secondUuid);
+    expect(fs.existsSync(path1)).toBe(false);
+    expect(fs.existsSync(path2)).toBe(false);
+  });
+
+  it('DELETE /api/artifacts supports bulk delete as well', async () => {
+    // Create an artifact to delete
+    const sampleHtml = `<!DOCTYPE html><html><head><title>Delete Route Test</title></head><body><h1>Delete</h1></body></html>`;
+    const createRes = await request(app)
+      .post('/api/artifacts')
+      .set('Authorization', `Bearer ${AUTH_TOKEN}`)
+      .field('title', 'Delete Route Test')
+      .attach('file', Buffer.from(sampleHtml), 'del.html');
+
+    expect(createRes.status).toBe(201);
+    const idToDelete = createRes.body.id;
+
+    const res = await request(app)
+      .delete('/api/artifacts')
+      .set('Authorization', `Bearer ${AUTH_TOKEN}`)
+      .send({ ids: [idToDelete] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.deletedCount).toBe(1);
+    expect(res.body.deletedIds).toContain(idToDelete);
+  });
+
+  it('DELETE /api/artifacts/:uuid removes artifact from DB and filesystem', async () => {
+    // Create artifact
+    const sampleHtml = `<!DOCTYPE html><html><head><title>Single Delete</title></head><body><h1>Single</h1></body></html>`;
+    const createRes = await request(app)
+      .post('/api/artifacts')
+      .set('Authorization', `Bearer ${AUTH_TOKEN}`)
+      .field('title', 'Single Delete Test')
+      .attach('file', Buffer.from(sampleHtml), 'single.html');
+
+    const singleId = createRes.body.id;
+
+    const res = await request(app)
+      .delete(`/api/artifacts/${singleId}`)
       .set('Authorization', `Bearer ${AUTH_TOKEN}`);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 
     // Subsequent lookup returns 404
-    const lookupRes = await request(app).get(`/api/artifacts/${createdUuid}`);
+    const lookupRes = await request(app).get(`/api/artifacts/${singleId}`);
     expect(lookupRes.status).toBe(404);
   });
 });

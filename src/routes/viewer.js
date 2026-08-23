@@ -4,6 +4,7 @@ import { readLimiter } from '../middleware/rateLimit.js';
 import { getArtifactMetadata } from '../services/storage.js';
 import { renderViewerHtml } from '../views/viewer.js';
 import { renderUploadHtml } from '../views/upload.js';
+import { renderHistoryHtml } from '../views/history.js';
 import { isValidUuid4, parsePositiveInt } from '../utils/sanitize.js';
 
 const router = express.Router();
@@ -15,6 +16,16 @@ const router = express.Router();
 router.get(['/', '/upload'], readLimiter, viewerSecurityHeaders, (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(renderUploadHtml());
+});
+
+/**
+ * GET /history
+ * Full artifact history catalog with selection and deletion management.
+ */
+router.get('/history', readLimiter, viewerSecurityHeaders, (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.send(renderHistoryHtml());
 });
 
 /**
