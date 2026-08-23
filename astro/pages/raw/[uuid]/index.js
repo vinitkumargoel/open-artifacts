@@ -2,7 +2,7 @@
  * /raw/:uuid — redirect to the latest version's immutable raw URL.
  */
 import { env } from 'cloudflare:workers';
-import { isValidUuid4 } from '../../../../src/utils/sanitize.js';
+import { isValidUuid4 } from '../../../../worker/sanitize.js';
 import { getArtifactMetadata } from '../../../../worker/storage.js';
 import { jsonError } from '../../../lib/http.js';
 

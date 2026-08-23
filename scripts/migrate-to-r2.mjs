@@ -29,7 +29,7 @@ import {
   extractTitleFromHtml,
   extractDescriptionFromHtml,
   isValidUuid4
-} from '../src/utils/sanitize.js';
+} from '../worker/sanitize.js';
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE_DIR = path.join(PROJECT_ROOT, 'data', 'artifacts');

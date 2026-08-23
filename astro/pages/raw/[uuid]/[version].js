@@ -3,7 +3,7 @@
  * opaque-origin sandbox header set.
  */
 import { env } from 'cloudflare:workers';
-import { isValidUuid4, parsePositiveInt } from '../../../../src/utils/sanitize.js';
+import { isValidUuid4, parsePositiveInt } from '../../../../worker/sanitize.js';
 import { getArtifactVersionObject } from '../../../../worker/storage.js';
 import { jsonError } from '../../../lib/http.js';
 import { RAW_SANDBOX_HEADERS } from '../../../../worker/headers.js';

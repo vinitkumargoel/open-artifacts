@@ -2,7 +2,7 @@
 
 > Self-Hosted HTML Artifact Publishing, Versioning & Sandboxed Viewer Service.
 
-**OpenArtifacts** is a lightweight, high-performance Node.js service designed to host, version, and render interactive standalone HTML artifacts (Claude Code artifacts, charts, dashboards, WebGL, React builds, reports) with permanent UUID-4 URLs, zero-trust sandbox execution, and token authorization.
+**OpenArtifacts** is a lightweight, high-performance service designed to host, version, and render interactive standalone HTML artifacts (Claude Code artifacts, charts, dashboards, WebGL, React builds, reports) with permanent UUID-4 URLs, zero-trust sandbox execution, and token authorization. It runs as an [Astro](https://astro.build) app on Cloudflare Workers with R2 storage — live at **https://artifact.vinitk.dev**.
 
 ---
 
@@ -15,7 +15,7 @@
 - **Responsive Viewport Previews**: Toggle between Desktop (100%), Tablet (768px), and Mobile (375px), with Fullscreen and Copy Link controls.
 - **Timing-Safe Token Authentication**: Publishing and deletion endpoints require `ARTIFACT_ACCESS_TOKEN` using pre-hashed SHA-256 constant-time comparison.
 - **Claude Code Skill (`/open-artifacts`)**: Built-in CLI skill to publish directly from Claude Code sessions with a single command.
-- **Hybrid Storage Engine**: MongoDB for metadata queries + local disk streaming with sidecar `meta.json` for 100% self-contained offline durability.
+- **R2 Object Storage**: Artifact bodies and sidecar `meta.json` metadata live in a Cloudflare R2 bucket (`artifacts/{uuid}/v{n}.html` + `meta.json`) — no database to run.
 
 ---
 
@@ -29,20 +29,9 @@ npm install
 ```
 
 ### 2. Environment Setup
-Copy `.env.example` to `.env` and set your secret access token:
+Copy `.dev.vars.example` to `.dev.vars` and set your secret access token for local development:
 ```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-```ini
-PORT=3008
-NODE_ENV=production
-BASE_URL=https://artifacts.yourdomain.com
-ARTIFACT_ACCESS_TOKEN=your_secret_access_token_here
-MONGO_URI=mongodb://127.0.0.1:27017/open_artifacts
-STORAGE_PATH=./data/artifacts
-MAX_FILE_SIZE_MB=25
+cp .dev.vars.example .dev.vars
 ```
 
 ### 3. Run Locally
@@ -50,29 +39,23 @@ MAX_FILE_SIZE_MB=25
 # Astro dev server (Cloudflare workerd runtime with local R2 + DO bindings)
 npm run dev
 
-# Legacy Express server with watch
-npm run dev:legacy
-
 # Run unit & integration tests (builds the Astro Worker first)
 npm test
-
-# Legacy Express production start
-npm start
 ```
 
 ---
 
-## ☁️ Serverless Deployment (Astro on Cloudflare Workers + R2)
+## ☁️ Architecture (Astro on Cloudflare Workers + R2)
 
-The service also runs fully serverless on Cloudflare — live at **https://artifact.vinitk.dev**. The Worker is an [Astro](https://astro.build) app (`astro/`, built with `@astrojs/cloudflare`): pages and API endpoints live in `astro/pages/`, the cross-cutting CORS / rate-limit / security-header stack in `astro/middleware.js`, and `astro/worker.js` is the custom Worker entry that exports the `RateLimiterDO` Durable Object. The storage, auth, and rate-limit primitives in `worker/` are shared modules; only the platform layer differs from the Express app:
+The Worker is an [Astro](https://astro.build) app (`astro/`, built with `@astrojs/cloudflare`): pages and API endpoints live in `astro/pages/`, the cross-cutting CORS / rate-limit / security-header stack in `astro/middleware.js`, and `astro/worker.js` is the custom Worker entry that exports the `RateLimiterDO` Durable Object. The storage, auth, and rate-limit primitives live in `worker/` as shared modules:
 
-| Concern | Express (self-hosted) | Astro on Cloudflare |
-|---|---|---|
-| Artifact bodies & metadata | Local disk + MongoDB | R2 bucket (`artifacts/{uuid}/v{n}.html` + `meta.json`) |
-| Per-visitor rate limiting | `express-rate-limit` in-memory | Durable Object per visitor bucket (`RateLimiterDO`) |
-| Publisher token | `.env` | Worker secret |
-| Static assets | `express.static` | Workers Assets via the Astro build (`public/`) |
-| Views | Template-literal renderers (`src/views/`) | Astro pages & components (`astro/pages/`, `astro/components/`) |
+| Concern | Implementation |
+|---|---|
+| Artifact bodies & metadata | R2 bucket (`artifacts/{uuid}/v{n}.html` + `meta.json`) |
+| Per-visitor rate limiting | Durable Object per visitor bucket (`RateLimiterDO`, fixed 60s window, IPv6 /64 bucketing) |
+| Publisher token | Worker secret (`ARTIFACT_ACCESS_TOKEN`) |
+| Static assets | Workers Assets via the Astro build (`public/`) |
+| Views | Astro pages & components (`astro/pages/`, `astro/components/`) |
 
 ### Bindings & secrets
 
@@ -97,7 +80,7 @@ npm run preview                  # astro build && wrangler dev (the exact deploy
 
 ### Migrating existing artifacts
 
-`scripts/migrate-to-r2.mjs` copies the disk layout (`data/artifacts/`) into R2 one-to-one, synthesizing `meta.json` for legacy directories that lack it:
+`scripts/migrate-to-r2.mjs` copies the legacy Express-era disk layout (`data/artifacts/`) into R2 one-to-one, synthesizing `meta.json` for legacy directories that lack it:
 
 ```bash
 npm run migrate:r2          # into the local wrangler dev store
@@ -107,21 +90,6 @@ npm run migrate:r2:remote   # into the production R2 bucket
 ### E2E tests
 
 `npm run test:e2e` (also part of `npm test`) builds the Astro Worker, migrates the real `data/artifacts/` into a throwaway local R2 store, boots the built Worker under `wrangler dev`, and exercises the full HTTP lifecycle: migrated artifacts served byte-identical, upload → view → raw → history → bulk delete, auth failures, the 100-item bulk-delete batch limit, and per-visitor rate limiting (including IPv6 /64 bucketing). `TRUST_VISITOR_HEADER=1` is an E2E-only var that lets tests simulate distinct visitors — never set it on a deployed environment.
-
----
-
-## 🖥️ Home Server & PM2 Deployment
-
-To run OpenArtifacts as a resilient background daemon on your Home Server:
-
-```bash
-# Start via PM2
-pm2 start ecosystem.config.cjs
-
-# Save PM2 state for automatic server reboot persistence
-pm2 save
-pm2 startup
-```
 
 ---
 
@@ -148,8 +116,8 @@ Content-Type: multipart/form-data
   "title": "Q3 Sales Performance",
   "description": "Interactive revenue charts",
   "isNew": true,
-  "url": "http://localhost:3008/a/a81c2d94-3450-48e2-b13c-0e241764df8a",
-  "rawUrl": "http://localhost:3008/raw/a81c2d94-3450-48e2-b13c-0e241764df8a/1",
+  "url": "https://artifact.vinitk.dev/a/a81c2d94-3450-48e2-b13c-0e241764df8a",
+  "rawUrl": "https://artifact.vinitk.dev/raw/a81c2d94-3450-48e2-b13c-0e241764df8a/1",
   "createdAt": "2026-08-15T12:00:00.000Z"
 }
 ```
@@ -194,7 +162,7 @@ The companion skill is located at `~/.claude/skills/open-artifacts/SKILL.md`.
 1. **Opaque Sandbox Execution**: Served with `Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups allow-modals;` and `X-Content-Type-Options: nosniff`.
 2. **Context-Aware Sanitization**: All user-controlled titles and descriptions are HTML-escaped before interpolation into viewer shells and OpenGraph meta tags.
 3. **Timing-Safe Auth**: Token comparisons pre-hash with SHA-256 to guarantee 32-byte buffers and prevent length-oracle timing leaks.
-4. **Path Traversal Defenses**: Strict UUID-4 regex validation and integer version casting ensure requests remain locked inside `STORAGE_PATH`.
+4. **Path Traversal Defenses**: Strict UUID-4 regex validation and integer version casting ensure R2 object keys stay locked inside the `artifacts/{uuid}/` layout.
 
 ---
 

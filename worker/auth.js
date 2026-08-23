@@ -1,6 +1,6 @@
 /**
  * Publisher token verification for the Worker runtime.
- * Same scheme as src/middleware/auth.js: both tokens are pre-hashed to SHA-256
+ * Same scheme as the legacy Express auth middleware (since removed): both tokens are pre-hashed to SHA-256
  * (guaranteeing equal-length buffers, eliminating length oracles) and compared
  * in constant time.
  */

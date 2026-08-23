@@ -3,8 +3,8 @@
  *
  * Each visitor bucket gets its own Durable Object instance per scope
  * (idFromName(`${scope}:${bucket}`)), holding a fixed 60-second window counter
- * in durable storage. This preserves the per-visitor keying of the Express
- * middleware (src/middleware/rateLimit.js) in a runtime where isolate memory
+ * in durable storage. This preserves the per-visitor keying of the legacy Express
+ * middleware in a runtime where isolate memory
  * is neither shared nor long-lived.
  */
 import { DurableObject } from 'cloudflare:workers';

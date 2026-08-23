@@ -1,8 +1,9 @@
 import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 
-// The legacy Express app still lives in src/ until the Astro port is verified,
-// so the Astro source tree sits in astro/ instead of the default src/.
+// The Astro source tree sits in astro/ instead of the default src/ — src/ was
+// the legacy Express app's home before its removal, and the shared server
+// modules live in worker/ beside it.
 export default defineConfig({
   srcDir: './astro',
   output: 'server',

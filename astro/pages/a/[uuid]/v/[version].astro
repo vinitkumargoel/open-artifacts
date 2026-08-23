@@ -3,7 +3,7 @@
 import { env } from 'cloudflare:workers';
 import ArtifactViewer from '../../../../components/ArtifactViewer.astro';
 import { VIEWER_SECURITY_HEADERS } from '../../../../../worker/headers.js';
-import { isValidUuid4, parsePositiveInt } from '../../../../../src/utils/sanitize.js';
+import { isValidUuid4, parsePositiveInt } from '../../../../../worker/sanitize.js';
 import { getArtifactMetadata } from '../../../../../worker/storage.js';
 import { htmlErrorPage, baseUrl } from '../../../../lib/http.js';
 

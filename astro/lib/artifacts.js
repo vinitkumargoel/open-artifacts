@@ -5,7 +5,7 @@
  * Ported one-for-one from the legacy Hono worker (since removed; see git history).
  */
 import { env } from 'cloudflare:workers';
-import { isValidUuid4 } from '../../src/utils/sanitize.js';
+import { isValidUuid4 } from '../../worker/sanitize.js';
 import { getArtifactMetadata, deleteArtifact, bulkDeleteArtifacts } from '../../worker/storage.js';
 import { json, jsonError, baseUrl, authGuard } from './http.js';
 

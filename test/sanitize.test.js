@@ -5,7 +5,7 @@ import {
   parsePositiveInt,
   extractTitleFromHtml,
   extractDescriptionFromHtml
-} from '../src/utils/sanitize.js';
+} from '../worker/sanitize.js';
 
 describe('Sanitization & Validation Utilities', () => {
   describe('escapeHtml', () => {

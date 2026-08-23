@@ -13,8 +13,8 @@ import {
   extractDescriptionFromHtml,
   isValidUuid4,
   parsePositiveInt
-} from '../src/utils/sanitize.js';
-import { formatArtifactList } from '../src/utils/formatArtifacts.js';
+} from './sanitize.js';
+import { formatArtifactList } from './formatArtifacts.js';
 
 const ARTIFACT_PREFIX = 'artifacts/';
 
@@ -67,7 +67,7 @@ export async function getArtifactVersionObject(bucket, uuid, versionNumber) {
 
 /**
  * Processes an uploaded artifact File and creates or versions the artifact record.
- * Mirrors processArtifactUpload() in src/services/storage.js.
+ * Mirrors processArtifactUpload() from the legacy Express storage service (since removed).
  *
  * @param {object} params
  * @param {R2Bucket} params.bucket
@@ -228,8 +228,8 @@ export async function listAllArtifacts(bucket, baseUrl) {
 }
 
 /**
- * Bulk deletes artifacts by their UUIDs. Mirrors bulkDeleteArtifacts() in
- * src/services/storage.js: deduplicates and drops invalid IDs before deleting.
+ * Bulk deletes artifacts by their UUIDs. Mirrors bulkDeleteArtifacts() from the
+ * legacy Express storage service: deduplicates and drops invalid IDs before deleting.
  * @param {R2Bucket} bucket
  * @param {string[]} ids
  * @returns {Promise<{ deletedCount: number, deletedIds: string[], failedIds: string[] }>}

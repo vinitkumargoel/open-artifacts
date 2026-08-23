@@ -1,5 +1,5 @@
 /**
- * Security header sets, ported verbatim from src/middleware/security.js.
+ * Security header sets, ported verbatim from the legacy Express security middleware (since removed).
  */
 
 /**
