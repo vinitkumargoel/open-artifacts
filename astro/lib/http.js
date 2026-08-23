@@ -1,6 +1,6 @@
 /**
  * Shared request/response helpers for the Astro endpoints and pages.
- * Ported from the Hono worker (worker/index.js): same config resolution, same
+ * Ported from the legacy Hono worker (since removed): same config resolution, same
  * error envelope, same HTML error page markup.
  */
 import { env } from 'cloudflare:workers';

@@ -1,6 +1,6 @@
 /**
  * /api/artifacts — list (GET), publish (POST), bulk delete (DELETE).
- * Ported one-for-one from worker/index.js.
+ * Ported one-for-one from the legacy Hono worker (since removed; see git history).
  */
 import { env } from 'cloudflare:workers';
 import { listAllArtifacts, processArtifactUpload } from '../../../../worker/storage.js';

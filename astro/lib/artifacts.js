@@ -2,7 +2,7 @@
  * API route handlers shared between /api/artifacts/[uuid] and
  * /api/artifacts/bulk-delete (whose GET/DELETE fall through to the :uuid
  * handlers in the Hono router, since 'bulk-delete' is just an invalid UUID).
- * Ported one-for-one from worker/index.js.
+ * Ported one-for-one from the legacy Hono worker (since removed; see git history).
  */
 import { env } from 'cloudflare:workers';
 import { isValidUuid4 } from '../../src/utils/sanitize.js';
