@@ -1,4 +1,12 @@
-# OpenArtifacts on Cloudflare Workers + R2
+# OpenArtifacts on Cloudflare Workers + R2, served by Astro.
+#
+# `main` points at the custom Worker entry (astro/worker.js) that wraps the
+# Astro handler and exports the RateLimiterDO Durable Object. This config is
+# consumed by the Cloudflare Vite plugin (via @astrojs/cloudflare): `astro dev`
+# runs it in workerd with these bindings, and `astro build` emits a resolved
+# wrangler.json into the build output for `wrangler dev` / `wrangler deploy`.
+# Static assets (public/) are handled by the Astro build; the adapter injects
+# the ASSETS binding automatically.
 #
 # Bindings:
 #   ARTIFACTS    - R2 bucket holding artifacts/{uuid}/meta.json and v{n}.html
@@ -7,15 +15,13 @@
 #   ARTIFACT_ACCESS_TOKEN - publisher token guarding upload/delete routes
 
 name = "open-artifacts"
-main = "worker/index.js"
+main = "astro/worker.js"
 compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
 
 routes = [
   { pattern = "artifact.vinitk.dev", custom_domain = true }
 ]
-
-[assets]
-directory = "./public"
 
 [[r2_buckets]]
 binding = "ARTIFACTS"

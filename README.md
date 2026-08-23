@@ -47,28 +47,32 @@ MAX_FILE_SIZE_MB=25
 
 ### 3. Run Locally
 ```bash
-# Development mode with watch
+# Astro dev server (Cloudflare workerd runtime with local R2 + DO bindings)
 npm run dev
 
-# Run unit & integration tests
+# Legacy Express server with watch
+npm run dev:legacy
+
+# Run unit & integration tests (builds the Astro Worker first)
 npm test
 
-# Production start
+# Legacy Express production start
 npm start
 ```
 
 ---
 
-## ☁️ Serverless Deployment (Cloudflare Workers + R2)
+## ☁️ Serverless Deployment (Astro on Cloudflare Workers + R2)
 
-The service also runs fully serverless on Cloudflare — live at **https://artifact.vinitk.dev**. The Worker (`worker/index.js`) reuses the same views and API surface as the Express app; only the platform layer differs:
+The service also runs fully serverless on Cloudflare — live at **https://artifact.vinitk.dev**. The Worker is an [Astro](https://astro.build) app (`astro/`, built with `@astrojs/cloudflare`): pages and API endpoints live in `astro/pages/`, the cross-cutting CORS / rate-limit / security-header stack in `astro/middleware.js`, and `astro/worker.js` is the custom Worker entry that exports the `RateLimiterDO` Durable Object. The storage, auth, and rate-limit primitives in `worker/` are shared modules; only the platform layer differs from the Express app:
 
-| Concern | Express (self-hosted) | Cloudflare Worker |
+| Concern | Express (self-hosted) | Astro on Cloudflare |
 |---|---|---|
 | Artifact bodies & metadata | Local disk + MongoDB | R2 bucket (`artifacts/{uuid}/v{n}.html` + `meta.json`) |
 | Per-visitor rate limiting | `express-rate-limit` in-memory | Durable Object per visitor bucket (`RateLimiterDO`) |
 | Publisher token | `.env` | Worker secret |
-| Static assets | `express.static` | Workers Assets (`public/`) |
+| Static assets | `express.static` | Workers Assets via the Astro build (`public/`) |
+| Views | Template-literal renderers (`src/views/`) | Astro pages & components (`astro/pages/`, `astro/components/`) |
 
 ### Bindings & secrets
 
@@ -77,17 +81,18 @@ The service also runs fully serverless on Cloudflare — live at **https://artif
 ```bash
 npx wrangler r2 bucket create open-artifacts        # one-time
 npx wrangler secret put ARTIFACT_ACCESS_TOKEN       # publisher token
-npm run deploy                                      # wrangler deploy
+npm run deploy                                      # astro build && wrangler deploy
 ```
 
-The custom domain (`artifact.vinitk.dev`) is configured via `routes` in `wrangler.toml`; when unset, absolute URLs fall back to the request origin (`BASE_URL` var overrides).
+The custom domain (`artifact.vinitk.dev`) is configured via `routes` in `wrangler.toml`; when unset, absolute URLs fall back to the request origin (`BASE_URL` var overrides). `astro build` emits the resolved Worker bundle and `dist/server/wrangler.json`; wrangler picks it up automatically through the `.wrangler/deploy/config.json` redirect, so plain `wrangler deploy` / `wrangler dev` always operate on the built output.
 
 ### Local development
 
 ```bash
 cp .dev.vars.example .dev.vars   # set ARTIFACT_ACCESS_TOKEN for local dev
+npm run dev                      # astro dev in workerd, with live R2 + DO bindings
 npm run migrate:r2               # copy data/artifacts/ into the local R2 simulator
-npm run dev:worker               # wrangler dev on http://localhost:8787
+npm run preview                  # astro build && wrangler dev (the exact deploy artifact)
 ```
 
 ### Migrating existing artifacts
@@ -101,7 +106,7 @@ npm run migrate:r2:remote   # into the production R2 bucket
 
 ### E2E tests
 
-`npm run test:e2e` (also part of `npm test`) migrates the real `data/artifacts/` into a throwaway local R2 store, boots the Worker under `wrangler dev`, and exercises the full HTTP lifecycle: migrated artifacts served byte-identical, upload → view → raw → history → bulk delete, auth failures, the 100-item bulk-delete batch limit, and per-visitor rate limiting (including IPv6 /64 bucketing). `TRUST_VISITOR_HEADER=1` is an E2E-only var that lets tests simulate distinct visitors — never set it on a deployed environment.
+`npm run test:e2e` (also part of `npm test`) builds the Astro Worker, migrates the real `data/artifacts/` into a throwaway local R2 store, boots the built Worker under `wrangler dev`, and exercises the full HTTP lifecycle: migrated artifacts served byte-identical, upload → view → raw → history → bulk delete, auth failures, the 100-item bulk-delete batch limit, and per-visitor rate limiting (including IPv6 /64 bucketing). `TRUST_VISITOR_HEADER=1` is an E2E-only var that lets tests simulate distinct visitors — never set it on a deployed environment.
 
 ---
 

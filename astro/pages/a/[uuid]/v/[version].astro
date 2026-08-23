@@ -1,0 +1,41 @@
+---
+// GET /a/:uuid/v/:version — viewer shell pinned to a specific version.
+import { env } from 'cloudflare:workers';
+import ArtifactViewer from '../../../../components/ArtifactViewer.astro';
+import { VIEWER_SECURITY_HEADERS } from '../../../../../worker/headers.js';
+import { isValidUuid4, parsePositiveInt } from '../../../../../src/utils/sanitize.js';
+import { getArtifactMetadata } from '../../../../../worker/storage.js';
+import { htmlErrorPage, baseUrl } from '../../../../lib/http.js';
+
+export const prerender = false;
+
+const { uuid, version } = Astro.params;
+
+if (!isValidUuid4(uuid)) {
+  return htmlErrorPage(400, 'Invalid Artifact ID', 'The requested artifact ID is not a valid UUID-4 format.');
+}
+
+const verNum = parsePositiveInt(version);
+if (isNaN(verNum)) {
+  return htmlErrorPage(400, 'Invalid Version Number', 'Version must be a positive integer.');
+}
+
+const metadata = await getArtifactMetadata(env.ARTIFACTS, uuid);
+if (!metadata) {
+  return htmlErrorPage(404, 'Artifact Not Found (404)', `No artifact found with ID: <code>${uuid}</code>`);
+}
+
+const hasVersion = (metadata.versions || []).some(v => v.versionNumber === verNum);
+if (!hasVersion) {
+  return htmlErrorPage(404, 'Version Not Found (404)', `Version ${verNum} does not exist for artifact <code>${uuid}</code>.`);
+}
+
+for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
+  Astro.response.headers.set(k, v);
+}
+Astro.response.headers.set('Content-Type', 'text/html; charset=UTF-8');
+// Short TTL: the shell embeds the version dropdown, so a long cache would
+// hide newly published versions on pinned pages. Raw content stays immutable.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+<ArtifactViewer artifact={metadata} currentVersion={verNum} baseUrl={baseUrl(Astro.request)} />
