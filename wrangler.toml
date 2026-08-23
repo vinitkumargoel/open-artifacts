@@ -1,0 +1,45 @@
+# OpenArtifacts on Cloudflare Workers + R2
+#
+# Bindings:
+#   ARTIFACTS    - R2 bucket holding artifacts/{uuid}/meta.json and v{n}.html
+#   RATE_LIMITER - Durable Object namespace for per-visitor rate limiting
+# Secrets (set with `wrangler secret put`, or .dev.vars for local dev):
+#   ARTIFACT_ACCESS_TOKEN - publisher token guarding upload/delete routes
+
+name = "open-artifacts"
+main = "worker/index.js"
+compatibility_date = "2026-08-01"
+
+routes = [
+  { pattern = "artifact.vinitk.dev", custom_domain = true }
+]
+
+[assets]
+directory = "./public"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "open-artifacts"
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiterDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RateLimiterDO"]
+
+[vars]
+NODE_ENV = "production"
+# Fixed public origin for absolute URLs (og:url, API url/rawUrl fields). Keeping
+# this pinned avoids deriving it from the request's Host header.
+BASE_URL = "https://artifact.vinitk.dev"
+MAX_FILE_SIZE_MB = "25"
+UPLOAD_RATE_LIMIT_PER_MIN = "30"
+# Applied per visitor (CF-Connecting-IP, IPv6 bucketed by /64), so this can be generous.
+READ_RATE_LIMIT_PER_MIN = "500"
+# BASE_URL is optional: when unset, absolute URLs use the request origin.
+# TRUST_VISITOR_HEADER must never be set here — it is a local-E2E-only escape hatch.
+
+[observability]
+enabled = true

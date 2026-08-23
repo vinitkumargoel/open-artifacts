@@ -1,14 +1,14 @@
 import { escapeHtml } from '../utils/sanitize.js';
-import { config } from '../config/env.js';
 
 /**
  * Generates the complete HTML for the Artifact Viewer Shell.
  * @param {object} params
  * @param {object} params.artifact - The artifact metadata object from DB/meta.json
  * @param {number} params.currentVersion - The version number to display
+ * @param {string} [params.baseUrl] - Absolute origin used for canonical/OG URLs
  * @returns {string} Server-rendered HTML
  */
-export function renderViewerHtml({ artifact, currentVersion }) {
+export function renderViewerHtml({ artifact, currentVersion, baseUrl = '' }) {
   const uuid = escapeHtml(artifact._id);
   const title = escapeHtml(artifact.title || 'Untitled Artifact');
   const description = escapeHtml(artifact.description || '');
@@ -21,7 +21,9 @@ export function renderViewerHtml({ artifact, currentVersion }) {
   }
 
   const rawUrl = `/raw/${uuid}/${activeVer}`;
-  const currentViewUrl = `${config.baseUrl}/a/${uuid}${activeVer === latestVer ? '' : `/v/${activeVer}`}`;
+  // baseUrl may be derived from the request origin on the Worker, so treat it
+  // as untrusted and escape it like any other interpolated value.
+  const currentViewUrl = escapeHtml(`${baseUrl}/a/${artifact._id}${activeVer === latestVer ? '' : `/v/${activeVer}`}`);
 
   // Find active version description/changelog
   const activeVersionObj = versions.find(v => v.versionNumber === activeVer);

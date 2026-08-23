@@ -59,6 +59,52 @@ npm start
 
 ---
 
+## ☁️ Serverless Deployment (Cloudflare Workers + R2)
+
+The service also runs fully serverless on Cloudflare — live at **https://artifact.vinitk.dev**. The Worker (`worker/index.js`) reuses the same views and API surface as the Express app; only the platform layer differs:
+
+| Concern | Express (self-hosted) | Cloudflare Worker |
+|---|---|---|
+| Artifact bodies & metadata | Local disk + MongoDB | R2 bucket (`artifacts/{uuid}/v{n}.html` + `meta.json`) |
+| Per-visitor rate limiting | `express-rate-limit` in-memory | Durable Object per visitor bucket (`RateLimiterDO`) |
+| Publisher token | `.env` | Worker secret |
+| Static assets | `express.static` | Workers Assets (`public/`) |
+
+### Bindings & secrets
+
+`wrangler.toml` declares the R2 bucket binding (`ARTIFACTS` → bucket `open-artifacts`), the Durable Object namespace (`RATE_LIMITER`), and vars for file size and rate limits. The only secret is the publisher token:
+
+```bash
+npx wrangler r2 bucket create open-artifacts        # one-time
+npx wrangler secret put ARTIFACT_ACCESS_TOKEN       # publisher token
+npm run deploy                                      # wrangler deploy
+```
+
+The custom domain (`artifact.vinitk.dev`) is configured via `routes` in `wrangler.toml`; when unset, absolute URLs fall back to the request origin (`BASE_URL` var overrides).
+
+### Local development
+
+```bash
+cp .dev.vars.example .dev.vars   # set ARTIFACT_ACCESS_TOKEN for local dev
+npm run migrate:r2               # copy data/artifacts/ into the local R2 simulator
+npm run dev:worker               # wrangler dev on http://localhost:8787
+```
+
+### Migrating existing artifacts
+
+`scripts/migrate-to-r2.mjs` copies the disk layout (`data/artifacts/`) into R2 one-to-one, synthesizing `meta.json` for legacy directories that lack it:
+
+```bash
+npm run migrate:r2          # into the local wrangler dev store
+npm run migrate:r2:remote   # into the production R2 bucket
+```
+
+### E2E tests
+
+`npm run test:e2e` (also part of `npm test`) migrates the real `data/artifacts/` into a throwaway local R2 store, boots the Worker under `wrangler dev`, and exercises the full HTTP lifecycle: migrated artifacts served byte-identical, upload → view → raw → history → bulk delete, auth failures, the 100-item bulk-delete batch limit, and per-visitor rate limiting (including IPv6 /64 bucketing). `TRUST_VISITOR_HEADER=1` is an E2E-only var that lets tests simulate distinct visitors — never set it on a deployed environment.
+
+---
+
 ## 🖥️ Home Server & PM2 Deployment
 
 To run OpenArtifacts as a resilient background daemon on your Home Server:

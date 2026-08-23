@@ -1,11 +1,11 @@
 ---
 name: open-artifacts
-description: Publish and version standalone interactive HTML artifacts (dashboards, charts, games, documents, reports) to the self-hosted OpenArtifacts server. Use when the user asks to "publish this artifact", "host this HTML", "share this artifact", "publish with open-artifacts", or update an existing artifact version. Returns a public viewer URL, direct raw URL, and assigned UUID-4.
+description: Publish and version standalone interactive HTML artifacts (dashboards, charts, games, documents, reports) to an OpenArtifacts server (self-hosted Express or serverless on Cloudflare Workers + R2). Use when the user asks to "publish this artifact", "host this HTML", "share this artifact", "publish with open-artifacts", or update an existing artifact version. Returns a public viewer URL, direct raw URL, and assigned UUID-4.
 ---
 
 # OpenArtifacts Publisher Skill
 
-Publish and version standalone interactive HTML files (dashboards, reports, games, charts) directly to your self-hosted **OpenArtifacts** instance.
+Publish and version standalone interactive HTML files (dashboards, reports, games, charts) directly to your **OpenArtifacts** instance. The API is identical whether the instance is the self-hosted Express server or the serverless Cloudflare Workers + R2 deployment (`npm run deploy` in the repo); on the serverless deployment the returned `url`/`rawUrl` are already on the public host.
 
 ## Usage
 

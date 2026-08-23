@@ -6,6 +6,7 @@ import { renderViewerHtml } from '../views/viewer.js';
 import { renderUploadHtml } from '../views/upload.js';
 import { renderHistoryHtml } from '../views/history.js';
 import { isValidUuid4, parsePositiveInt } from '../utils/sanitize.js';
+import { config } from '../config/env.js';
 
 const router = express.Router();
 
@@ -63,7 +64,8 @@ router.get('/a/:uuid', readLimiter, viewerSecurityHeaders, async (req, res, next
 
     const html = renderViewerHtml({
       artifact: metadata,
-      currentVersion: latestVer
+      currentVersion: latestVer,
+      baseUrl: config.baseUrl
     });
 
     return res.send(html);
@@ -127,7 +129,8 @@ router.get('/a/:uuid/v/:version', readLimiter, viewerSecurityHeaders, async (req
 
     const html = renderViewerHtml({
       artifact: metadata,
-      currentVersion: verNum
+      currentVersion: verNum,
+      baseUrl: config.baseUrl
     });
 
     return res.send(html);

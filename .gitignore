@@ -7,3 +7,6 @@ data/artifacts/*
 !data/artifacts/tmp/.gitkeep
 coverage/
 *.log
+.wrangler/
+.dev.vars
+.artifact-token.production

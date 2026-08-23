@@ -1,0 +1,7 @@
+# Local development secrets for `wrangler dev` (copy to .dev.vars).
+# Production: set with `wrangler secret put ARTIFACT_ACCESS_TOKEN`.
+ARTIFACT_ACCESS_TOKEN=your_secure_random_token_here
+NODE_ENV=development
+# Uncomment to make local responses use local URLs instead of the production
+# BASE_URL pinned in wrangler.toml [vars]:
+# BASE_URL=http://localhost:8787
