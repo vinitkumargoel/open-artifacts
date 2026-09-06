@@ -1,0 +1,331 @@
+---
+/**
+ * GET /unlock?next=<path> — the token-entry surface for browsers.
+ *
+ * Read-gated routes redirect here (302) rather than rendering a 401 body, so
+ * this is a normal 200 page with a real URL the browser can go back to. It
+ * exchanges the token in localStorage for the read-scope session cookie via
+ * POST /api/session, then continues to `next`.
+ *
+ * Deliberately outside the read gate: it is how you get past the read gate.
+ * It carries no artifact data of its own.
+ */
+import { VIEWER_SECURITY_HEADERS } from '../../worker/headers.js';
+import { safeNextPath } from '../../worker/sanitize.js';
+
+export const prerender = false;
+
+// Never trust the query parameter: anything but a single-slash same-origin
+// path is an open redirect.
+const next = safeNextPath(Astro.url.searchParams.get('next'));
+
+for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
+  Astro.response.headers.set(k, v);
+}
+Astro.response.headers.set('Content-Type', 'text/html; charset=UTF-8');
+Astro.response.headers.set('Cache-Control', 'no-store');
+---
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>Unlock &bull; OpenArtifacts</title>
+  <style is:inline>
+    :root {
+      --bg: #fbfbfb;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f4f4f5;
+      --border: #e4e4e7;
+      --border-focus: #18181b;
+      --text-primary: #18181b;
+      --text-secondary: #52525b;
+      --text-tertiary: #a1a1aa;
+      --accent: #18181b;
+      --accent-hover: #27272a;
+      --danger: #dc2626;
+      --success: #16a34a;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.1);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+    }
+
+    h1 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+    .sub { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+    .target {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 6px 8px;
+      word-break: break-all;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 12px; font-weight: 600; }
+
+    .field input {
+      width: 100%;
+      height: 38px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0 10px;
+      font-size: 12.5px;
+      font-family: var(--font-mono);
+      outline: none;
+    }
+    .field input:focus { border-color: var(--border-focus); background: var(--bg-surface); }
+
+    .remember {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+    }
+    .remember input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+
+    .btn {
+      height: 38px;
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .status { font-size: 12px; line-height: 1.5; min-height: 17px; color: var(--text-tertiary); }
+    .status.error { color: var(--danger); }
+    .status.ok { color: var(--success); }
+
+    .hint {
+      font-size: 11.5px;
+      color: var(--text-tertiary);
+      line-height: 1.5;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .hint code {
+      font-family: var(--font-mono);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 4px;
+      font-size: 11px;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <span class="brand-mark">&lambda;</span>
+      <span>OpenArtifacts</span>
+    </div>
+
+    <div>
+      <h1>Unlock this browser</h1>
+      <p class="sub">Reading artifacts on this server requires the access token. It is stored in this browser and exchanged for a session that lasts 7 days.</p>
+    </div>
+
+    <div class="target" id="targetPath"></div>
+
+    <div class="field" id="tokenField">
+      <label for="tokenInput">Access Token <span style="font-weight: 400; color: var(--text-tertiary);">(ARTIFACT_ACCESS_TOKEN)</span></label>
+      <input type="password" id="tokenInput" placeholder="Paste access token" autocomplete="current-password" spellcheck="false">
+    </div>
+
+    <label class="remember" for="rememberChk">
+      <input type="checkbox" id="rememberChk" checked>
+      <span>Remember on this device <span style="color: var(--text-tertiary);">&mdash; uncheck to keep for this tab only</span></span>
+    </label>
+
+    <button type="button" class="btn" id="unlockBtn">Unlock</button>
+    <div class="status" id="status">&nbsp;</div>
+
+    <p class="hint">
+      Command-line clients skip this page entirely &mdash; send
+      <code>Authorization: Bearer &lt;token&gt;</code> on the request instead.
+    </p>
+  </main>
+
+  <script is:inline define:vars={{ next }}>
+    const STORAGE_KEY = 'open_artifacts_token';
+    const statusEl = document.getElementById('status');
+    const input = document.getElementById('tokenInput');
+    const btn = document.getElementById('unlockBtn');
+
+    document.getElementById('targetPath').textContent = 'Continue to ' + next;
+
+    function setStatus(msg, kind) {
+      statusEl.textContent = msg || ' ';
+      statusEl.className = 'status' + (kind ? ' ' + kind : '');
+    }
+
+    function storedToken() {
+      try {
+        return localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY) || '';
+      } catch (err) {
+        return '';
+      }
+    }
+
+    function persist(token, remember) {
+      try {
+        if (remember) {
+          localStorage.setItem(STORAGE_KEY, token);
+          sessionStorage.removeItem(STORAGE_KEY);
+        } else {
+          sessionStorage.setItem(STORAGE_KEY, token);
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      } catch (err) {
+        // Private mode or blocked storage: the session cookie still gets set,
+        // so this visit works — only the auto-unlock on the next one is lost.
+        setStatus('Unlocked, but this browser would not save the token.', null);
+      }
+    }
+
+    // Exchanges the token for the read-scope cookie. `remember` is null when
+    // replaying a token already in storage, which must not move it between
+    // localStorage and sessionStorage.
+    async function unlock(token, remember) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span><span>Unlocking…</span>';
+      setStatus('');
+
+      try {
+        const res = await fetch('/api/session', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          const message = (data.error && data.error.message) || 'Unlock failed (' + res.status + ')';
+          throw new Error(res.status === 401 ? 'That token was not accepted.' : message);
+        }
+
+        if (remember !== null) persist(token, remember);
+        setStatus('Unlocked. Redirecting…', 'ok');
+        // replace(), not assign(): the unlock page should not sit in history
+        // between the artifact and wherever the user came from.
+        window.location.replace(next);
+        return true;
+      } catch (err) {
+        setStatus(err.message, 'error');
+        return false;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Unlock';
+      }
+    }
+
+    btn.addEventListener('click', () => {
+      const token = input.value.trim();
+      if (!token) {
+        setStatus('Enter the access token to continue.', 'error');
+        input.focus();
+        return;
+      }
+      unlock(token, document.getElementById('rememberChk').checked);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') btn.click();
+    });
+
+    // Auto-unlock: a token is already on this device but the cookie lapsed (or
+    // never existed, e.g. after a SESSION_EPOCH bump). No interaction needed.
+    const existing = storedToken();
+    if (existing) {
+      setStatus('Using the token saved in this browser…');
+      unlock(existing, null).then(ok => {
+        if (!ok) {
+          setStatus('The saved token was rejected. Paste a current one.', 'error');
+          input.focus();
+        }
+      });
+    } else {
+      input.focus();
+    }
+  </script>
+</body>
+</html>

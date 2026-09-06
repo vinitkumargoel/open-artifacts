@@ -5,8 +5,9 @@ import { env } from 'cloudflare:workers';
 import ArtifactViewer from '../../../components/ArtifactViewer.astro';
 import { VIEWER_SECURITY_HEADERS } from '../../../../worker/headers.js';
 import { isValidUuid4 } from '../../../../worker/sanitize.js';
-import { getArtifactMetadata } from '../../../../worker/storage.js';
+import { getArtifactMetadata, isExpired } from '../../../../worker/storage.js';
 import { htmlErrorPage, baseUrl } from '../../../lib/http.js';
+import { signVersionUrls } from '../../../lib/readauth.js';
 
 export const prerender = false;
 
@@ -21,7 +22,21 @@ if (!metadata) {
   return htmlErrorPage(404, 'Artifact Not Found (404)', `No artifact found with ID: <code>${uuid}</code>`);
 }
 
+// Lazy expiry: the daily sweep may not have reached this artifact yet, and it
+// may be switched off entirely.
+if (isExpired(metadata)) {
+  return htmlErrorPage(410, 'Artifact Expired (410)',
+    `This artifact reached the end of its retention window on ${new Date(metadata.expiresAt).toLocaleString()} and has been removed.`);
+}
+
 const latestVer = metadata.latestVersion || 1;
+
+// The frame is sandboxed to an opaque origin, so it can neither send the
+// session cookie's origin-bound alternatives nor authenticate itself. Hand it
+// pre-signed URLs instead — one per version, since the picker swaps src
+// client-side. See worker/session.js.
+const versionNumbers = (metadata.versions || []).map(v => v.versionNumber);
+const rawQuery = await signVersionUrls(uuid, versionNumbers.length ? versionNumbers : [latestVer]);
 
 for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
   Astro.response.headers.set(k, v);
@@ -29,4 +44,4 @@ for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
 Astro.response.headers.set('Content-Type', 'text/html; charset=UTF-8');
 Astro.response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
 ---
-<ArtifactViewer artifact={metadata} currentVersion={latestVer} baseUrl={baseUrl(Astro.request)} />
+<ArtifactViewer artifact={metadata} currentVersion={latestVer} baseUrl={baseUrl(Astro.request)} rawQuery={rawQuery} />

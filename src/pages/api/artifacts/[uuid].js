@@ -1,12 +1,17 @@
 /**
- * /api/artifacts/:uuid — metadata lookup (GET) and single delete (DELETE).
+ * /api/artifacts/:uuid — metadata lookup (GET), retention change (PATCH),
+ * and single delete (DELETE).
  */
-import { handleGetOne, handleDeleteOne } from '../../../lib/artifacts.js';
+import { handleGetOne, handleDeleteOne, handleSetTtl } from '../../../lib/artifacts.js';
 
 export const prerender = false;
 
 export async function GET({ request, params }) {
   return handleGetOne(request, params.uuid);
+}
+
+export async function PATCH({ request, params }) {
+  return handleSetTtl(request, params.uuid);
 }
 
 export async function DELETE({ request, params }) {

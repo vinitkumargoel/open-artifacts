@@ -26,6 +26,9 @@ export function formatArtifactList(items, baseUrl) {
       totalSize,
       createdAt: item.createdAt || new Date().toISOString(),
       updatedAt: item.updatedAt || item.createdAt || new Date().toISOString(),
+      // null / absent means "never expires" — see isExpired() in storage.js.
+      ttlDays: item.ttlDays ?? null,
+      expiresAt: item.expiresAt || null,
       url: `${baseUrl}/a/${item._id}`,
       rawUrl: `${baseUrl}/raw/${item._id}/${latestVer}`,
       versions: versions.map(v => ({

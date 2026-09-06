@@ -23,6 +23,11 @@ routes = [
   { pattern = "artifact.vinitk.dev", custom_domain = true }
 ]
 
+# Daily retention sweep. The handler (scheduled() in src/worker.js) is inert
+# until EXPIRY_SWEEP_ENABLED is set, so this can be deployed and watched first.
+[triggers]
+crons = ["0 3 * * *"]
+
 [[r2_buckets]]
 binding = "ARTIFACTS"
 bucket_name = "open-artifacts"
@@ -44,6 +49,24 @@ MAX_FILE_SIZE_MB = "25"
 UPLOAD_RATE_LIMIT_PER_MIN = "30"
 # Applied per visitor (CF-Connecting-IP, IPv6 bucketed by /64), so this can be generous.
 READ_RATE_LIMIT_PER_MIN = "500"
+# Arms the daily expiry sweep. Unset/0 => the cron runs in dry-run and only logs.
+# Deletion is irreversible: turn this on only after a backfill has been reviewed.
+EXPIRY_SWEEP_ENABLED = "0"
+# Default artifact retention when a publish doesn't pass a ttl field.
+DEFAULT_TTL_DAYS = "30"
+# Reads (/a/*, /raw/*, /history, GET /api/artifacts*) require the access token.
+# Set to "0" only to temporarily reopen the instance; it defaults to on, so a
+# typo here fails closed rather than republishing the whole catalogue.
+READ_AUTH_ENABLED = "1"
+# Bump to revoke every outstanding browser session and capability URL without
+# rotating ARTIFACT_ACCESS_TOKEN (which would break every CLI and agent).
+SESSION_EPOCH = "1"
+# Per-visitor budget for unlock attempts and rejected reads. Kept separate from
+# the read budget so 401 traffic can't 429 legitimate visitors behind the same NAT.
+SESSION_RATE_LIMIT_PER_MIN = "20"
+# Instance-wide backstop against distributed credential guessing, where
+# per-visitor limits are useless. Fed by failures only. "0" disables it.
+AUTH_FAILURE_LIMIT_PER_MIN = "600"
 # BASE_URL is optional: when unset, absolute URLs use the request origin.
 # TRUST_VISITOR_HEADER must never be set here — it is a local-E2E-only escape hatch.
 

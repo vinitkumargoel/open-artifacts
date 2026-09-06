@@ -395,6 +395,15 @@
       transition: all 0.15s;
     }
 
+    .ttl-row {
+      display: flex;
+      gap: 8px;
+    }
+    .ttl-row select { flex: 1 1 auto; min-width: 0; }
+    .ttl-row input { flex: 0 0 110px; }
+
+    .diag-item.warn { color: var(--warning); }
+
     .input-field:focus {
       background: var(--bg-surface);
       border-color: var(--border-focus);
@@ -963,6 +972,7 @@
         <div class="diag-item"><span>📦</span> <span id="diagSize">0 KB</span></div>
         <div class="diag-item"><span>📱</span> <span id="diagViewport">Viewport OK</span></div>
         <div class="diag-item"><span>⚡</span> <span id="diagScripts">Standalone</span></div>
+        <div class="diag-item" id="diagAssetsWrap" style="display: none;"><span>🖼️</span> <span id="diagAssets"></span></div>
       </div>
 
       <!-- Main Form -->
@@ -981,6 +991,26 @@
             <span class="field-hint">Optional</span>
           </div>
           <input type="text" id="descInput" class="input-field" placeholder="e.g. Added dark mode toggle">
+        </div>
+
+        <div class="field-group">
+          <div class="field-header">
+            <label class="field-label" for="ttlSelect">Retention</label>
+            <span class="field-hint" id="ttlHint">Deleted automatically once it lapses</span>
+          </div>
+          <div class="ttl-row">
+            <select id="ttlSelect" class="input-field" onchange="onTtlChange()">
+              <option value="">Unchanged</option>
+              <option value="7">7 days</option>
+              <option value="30" selected>30 days</option>
+              <option value="90">90 days</option>
+              <option value="365">1 year</option>
+              <option value="never">Keep forever</option>
+              <option value="custom">Custom&hellip;</option>
+            </select>
+            <input type="number" id="ttlDaysInput" class="input-field input-mono" min="1" max="3650" step="1"
+                   placeholder="days" style="display: none;" oninput="onTtlChange()">
+          </div>
         </div>
 
         <!-- Advanced Toggle -->
@@ -1195,6 +1225,46 @@
       return !localStorage.getItem('open_artifacts_token') && !!sessionStorage.getItem('open_artifacts_token');
     }
 
+    // Reads are token-gated too, so a token saved here is also exchanged for
+    // the read-scope session cookie — without it, every artifact link on this
+    // page would bounce through /unlock. Failures are non-fatal: the token is
+    // still stored, and /unlock retries the exchange.
+    async function mintReadSession(token) {
+      try {
+        const res = await fetch('/api/session', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        return res.ok;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    async function dropReadSession() {
+      try {
+        await fetch('/api/session', { method: 'DELETE' });
+      } catch (err) {
+        // Cookie survives until it expires; nothing more to do client-side.
+      }
+    }
+
+    // Preserves the user's "this tab only" choice. Writing straight to
+    // localStorage would silently promote a session-only token to permanent
+    // storage the first time the user published or deleted something.
+    function rememberToken(token) {
+      try {
+        if (tokenIsSessionOnly()) {
+          sessionStorage.setItem('open_artifacts_token', token);
+        } else {
+          localStorage.setItem('open_artifacts_token', token);
+        }
+      } catch (err) {
+        // Storage blocked (private mode): the in-flight request still carries
+        // the token, so only the convenience of remembering it is lost.
+      }
+    }
+
     function promptToken() {
       const input = document.getElementById('tokenModalInput');
       const hint = document.getElementById('tokenModalHint');
@@ -1256,6 +1326,7 @@
       closeModals();
       setTokenStatus(true);
       showToast(remember ? 'Access token saved on this device' : 'Access token saved for this tab');
+      mintReadSession(trimmed);
     }
 
     function clearTokenFromModal() {
@@ -1266,6 +1337,7 @@
       closeModals();
       setTokenStatus(false);
       showToast('Access token cleared');
+      dropReadSession();
     }
 
     // Drag & Drop
@@ -1342,6 +1414,58 @@
       frame.srcdoc = html;
     }
 
+    // ---- Retention (TTL) ------------------------------------------------
+    /** Publishing a new version re-clocks expiry, so this is set every publish. */
+    function onTtlChange(userInitiated) {
+      const sel = document.getElementById('ttlSelect');
+      if (userInitiated !== false) sel.dataset.touched = '1';
+      const custom = sel.value === 'custom';
+      document.getElementById('ttlDaysInput').style.display = custom ? '' : 'none';
+      updateTtlHint();
+    }
+
+    /**
+     * The value to send as the `ttl` form field.
+     * '' means "leave it as it is" (the server keeps the artifact's current
+     * setting, or applies DEFAULT_TTL_DAYS for a brand new one).
+     * null means the custom box is empty or out of range — publishing blocks.
+     */
+    function selectedTtl() {
+      const sel = document.getElementById('ttlSelect');
+      if (sel.value !== 'custom') return sel.value;
+
+      const days = parseInt(document.getElementById('ttlDaysInput').value, 10);
+      if (!Number.isFinite(days) || days < 1 || days > 3650) return null;
+      return String(days);
+    }
+
+    function updateTtlHint() {
+      const hint = document.getElementById('ttlHint');
+      const ttl = selectedTtl();
+
+      if (ttl === null) {
+        hint.textContent = 'Enter 1-3650 days';
+      } else if (ttl === '') {
+        hint.textContent = document.getElementById('idInput').value.trim()
+          ? "Keeps this artifact's current retention"
+          : 'Server default (30 days)';
+      } else if (ttl === 'never') {
+        hint.textContent = 'Never deleted';
+      } else {
+        hint.textContent = 'Deleted on '
+          + new Date(Date.now() + Number(ttl) * 86400000).toLocaleDateString();
+      }
+    }
+
+    // A new artifact gets the 30-day default; an update leaves whatever the
+    // artifact already has, so republishing can't silently unpin a keeper.
+    function syncTtlDefault() {
+      const sel = document.getElementById('ttlSelect');
+      if (sel.dataset.touched === '1') return;
+      sel.value = document.getElementById('idInput').value.trim() ? '' : '30';
+      onTtlChange(false);
+    }
+
     function runHealthDiagnostics(html, sizeBytes) {
       const bar = document.getElementById('diagnosticsBar');
       bar.style.display = 'flex';
@@ -1358,6 +1482,29 @@
       // External scripts
       const hasScripts = /<script/i.test(html);
       document.getElementById('diagScripts').textContent = hasScripts ? 'JS Active' : 'Static HTML';
+
+      // Inline base64 assets. Storage is cheap, but every new version stores a
+      // fresh copy of all of them, and an agent fetching the HTML pays for the
+      // whole payload in tokens. Worth surfacing before it becomes the artifact.
+      let dataBytes = 0;
+      const dataUri = /data:[a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g;
+      let match;
+      while ((match = dataUri.exec(html)) !== null) dataBytes += match[0].length;
+
+      const assetsWrap = document.getElementById('diagAssetsWrap');
+      if (dataBytes > 0 && sizeBytes > 0) {
+        const pct = Math.round((dataBytes / sizeBytes) * 100);
+        const el = document.getElementById('diagAssets');
+        el.textContent = (dataBytes / 1024).toFixed(0) + ' KB inline (' + pct + '%)';
+        // Loud only when it actually dominates the file or is heavy in absolute
+        // terms — a small inline icon is a perfectly good tradeoff.
+        assetsWrap.classList.toggle('warn', pct >= 40 || dataBytes > 1024 * 1024);
+        assetsWrap.title = 'Base64 data: URIs account for ' + (dataBytes / 1024).toFixed(0)
+          + ' KB of this artifact. Every version stores its own copy.';
+        assetsWrap.style.display = 'flex';
+      } else {
+        assetsWrap.style.display = 'none';
+      }
     }
 
     function popoutPreview() {
@@ -1467,6 +1614,7 @@
 
     function applyUpdateTarget(uuid) {
       document.getElementById('idInput').value = uuid;
+      syncTtlDefault();
       document.getElementById('advancedDrawer').classList.add('open');
       document.getElementById('advChevron').innerHTML = '&or;';
       document.getElementById('recentsModal').style.display = 'none';
@@ -1514,8 +1662,16 @@
         fileBlob = new Blob([code], { type: 'text/html' });
       }
 
-      localStorage.setItem('open_artifacts_token', token);
+      const ttl = selectedTtl();
+      if (ttl === null) {
+        showToast('Retention must be between 1 and 3650 days');
+        document.getElementById('ttlDaysInput').focus();
+        return;
+      }
+
+      rememberToken(token);
       setTokenStatus(true);
+      mintReadSession(token);
 
       const formData = new FormData();
       formData.append('file', fileBlob, filename);
@@ -1528,6 +1684,9 @@
 
       const id = document.getElementById('idInput').value.trim();
       if (id) formData.append('id', id);
+
+      // '' is meaningful — it tells the server to keep the current retention.
+      if (ttl !== '') formData.append('ttl', ttl);
 
       btn.disabled = true;
       btn.innerHTML = '<span>Publishing...</span>';
@@ -1564,6 +1723,9 @@
         btn.innerHTML = '<span>Publish Artifact</span><span class="kbd-badge">⌘↵</span>';
       }
     });
+
+    document.getElementById('idInput').addEventListener('input', syncTtlDefault);
+    syncTtlDefault();
 
     // Check URL parameters for pre-selected update target ID
     const urlParams = new URLSearchParams(window.location.search);

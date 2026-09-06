@@ -1,0 +1,618 @@
+---
+/**
+ * Version comparison view for /a/:uuid/diff.
+ *
+ * Three ways of answering "what changed", because no single one covers every
+ * artifact: Source (the HTML itself), Rendered (the two pages side by side or
+ * overlaid), and Prose (block text only, closest to a wiki-style diff).
+ *
+ * Unlike UploadPortal/HistoryDashboard, this component is new code with no
+ * legacy byte-fidelity constraint, so the client script is a normal bundled
+ * Astro <script> importing src/scripts/diff.js rather than an is:inline blob.
+ */
+const { artifact, fromVersion, toVersion, rawQuery = {} } = Astro.props;
+
+const uuid = artifact._id;
+const title = artifact.title || 'Untitled Artifact';
+const versions = (artifact.versions || []).slice().sort((a, b) => b.versionNumber - a.versionNumber);
+
+const fromMeta = versions.find(v => v.versionNumber === fromVersion) || {};
+const toMeta = versions.find(v => v.versionNumber === toVersion) || {};
+
+// contentHash lets the page declare "nothing changed" without fetching or
+// diffing either body.
+const identical = Boolean(fromMeta.contentHash && toMeta.contentHash
+  && fromMeta.contentHash === toMeta.contentHash);
+
+const fmtBytes = (n) => {
+  if (!n && n !== 0) return '—';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+};
+const fmtDate = (iso) => iso ? new Date(iso).toLocaleString() : '—';
+const sizeDelta = (toMeta.fileSize || 0) - (fromMeta.fileSize || 0);
+---
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compare v{fromVersion} → v{toVersion} · {title}</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <!-- is:global is required: the diff rows are injected via innerHTML and so
+       never carry Astro's data-astro-cid-* scoping attribute. -->
+  <style is:global>
+    :root {
+      --bg: #fbfbfb;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f4f4f5;
+      --border: #e4e4e7;
+      --text-primary: #18181b;
+      --text-secondary: #52525b;
+      --text-tertiary: #a1a1aa;
+      --add-bg: #e6ffec;
+      --add-bg-strong: #abf2bc;
+      --add-text: #0a5122;
+      --del-bg: #ffebe9;
+      --del-bg-strong: #ffc1bc;
+      --del-text: #82071e;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    /* Several rules below set an explicit display, which would otherwise
+       beat the UA stylesheet's [hidden] { display: none }. */
+    [hidden] { display: none !important; }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: var(--bg); color: var(--text-primary);
+      font-family: var(--font-sans); font-size: 14px;
+    }
+    body { display: flex; flex-direction: column; }
+
+    header {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 10px 16px; background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand { font-weight: 600; text-decoration: none; color: var(--text-primary); }
+    .sep { color: var(--text-tertiary); }
+    h1 {
+      font-size: 14px; font-weight: 600; margin: 0;
+      max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .spacer { flex: 1; }
+
+    .picker { display: flex; align-items: center; gap: 6px; }
+    select, button, .btn {
+      font-family: inherit; font-size: 13px;
+      padding: 5px 10px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); background: var(--bg-surface);
+      color: var(--text-primary); cursor: pointer;
+    }
+    select:hover, button:hover, .btn:hover { border-color: var(--text-secondary); }
+    .btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .arrow { color: var(--text-tertiary); }
+
+    .summary {
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      padding: 8px 16px; background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px; color: var(--text-secondary);
+    }
+    .stat { display: inline-flex; align-items: center; gap: 5px; }
+    .summary .add { color: var(--add-text); font-weight: 600; }
+    .summary .del { color: var(--del-text); font-weight: 600; }
+    .badge {
+      padding: 2px 8px; border-radius: 999px; font-weight: 600;
+      background: var(--bg-surface); border: 1px solid var(--border);
+    }
+    .badge.same { background: var(--add-bg); border-color: var(--add-bg-strong); color: var(--add-text); }
+    .badge.warn { background: #fff8c5; border-color: #eed888; color: #7a5c00; }
+
+    .tabs { display: flex; gap: 2px; padding: 0 16px; background: var(--bg-surface); border-bottom: 1px solid var(--border); }
+    .tab {
+      border: none; background: none; padding: 9px 14px; font-size: 13px;
+      color: var(--text-secondary); border-bottom: 2px solid transparent; border-radius: 0;
+    }
+    .tab[aria-selected="true"] { color: var(--text-primary); font-weight: 600; border-bottom-color: var(--text-primary); }
+
+    .panel { flex: 1; min-height: 0; overflow: auto; }
+
+    /* --- Source + prose diff --- */
+    .diff { font-family: var(--font-mono); font-size: 12px; line-height: 1.55; }
+    #proseDiff { font-family: var(--font-sans); font-size: 13px; line-height: 1.7; }
+    .row { display: flex; white-space: pre-wrap; word-break: break-word; }
+    .row.ins { background: var(--add-bg); }
+    .row.del { background: var(--del-bg); }
+    .gutter {
+      flex: none; padding: 0; color: var(--text-tertiary);
+      background: var(--bg-subtle); border-right: 1px solid var(--border);
+      user-select: none; position: sticky; left: 0; z-index: 1;
+    }
+    .gutter span {
+      display: inline-block; width: 44px; padding-right: 10px;
+      text-align: right; font-variant-numeric: tabular-nums;
+    }
+    .mark {
+      flex: none; width: 20px; text-align: center; user-select: none;
+      color: var(--text-tertiary); font-weight: 600;
+    }
+    .row.ins .mark { color: var(--add-text); }
+    .row.del .mark { color: var(--del-text); }
+    .row.ins .gutter { background: #d6f5de; }
+    .row.del .gutter { background: #ffd7d5; }
+    .code { flex: 1; padding-right: 16px; }
+    .row.ins .code ins, .row.del .code del { text-decoration: none; border-radius: 2px; padding: 0 1px; }
+    .row.ins .code ins { background: var(--add-bg-strong); }
+    .row.del .code del { background: var(--del-bg-strong); }
+    .fold {
+      padding: 5px 16px 5px 128px; color: var(--text-tertiary);
+      background: var(--bg-subtle); border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border); cursor: pointer; font-size: 11px;
+    }
+    .fold:hover { color: var(--text-secondary); }
+
+    .notice { padding: 32px 16px; text-align: center; color: var(--text-secondary); }
+    .notice strong { display: block; margin-bottom: 6px; color: var(--text-primary); }
+
+    /* --- Rendered comparison --- */
+    .rendered { display: flex; flex-direction: column; height: 100%; }
+    .rendered-bar {
+      display: flex; align-items: center; gap: 10px; padding: 8px 16px;
+      border-bottom: 1px solid var(--border); background: var(--bg-surface); font-size: 12px;
+    }
+    .stage { flex: 1; min-height: 0; position: relative; background: var(--bg-subtle); }
+    .side-by-side { display: flex; height: 100%; gap: 1px; background: var(--border); }
+    .side { flex: 1; display: flex; flex-direction: column; background: var(--bg-surface); min-width: 0; }
+    .side-label {
+      padding: 4px 10px; font-size: 11px; font-weight: 600;
+      background: var(--bg-subtle); border-bottom: 1px solid var(--border); color: var(--text-secondary);
+    }
+    .side iframe, .overlay iframe { flex: 1; width: 100%; height: 100%; border: 0; background: #fff; }
+    .overlay { position: absolute; inset: 0; }
+    .overlay .layer { position: absolute; inset: 0; }
+    .overlay .layer.top { border-right: 2px solid #2563eb; }
+    .swipe {
+      position: absolute; top: 0; bottom: 0; width: 28px; margin-left: -14px;
+      cursor: col-resize; z-index: 5;
+    }
+    .swipe::after {
+      content: ''; position: absolute; top: 0; bottom: 0; left: 13px; width: 2px; background: #2563eb;
+    }
+    .swipe-grip {
+      position: absolute; top: 50%; left: 0; transform: translateY(-50%);
+      width: 28px; height: 28px; border-radius: 50%; background: #2563eb; color: #fff;
+      display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+  </style>
+</head>
+<body
+  data-uuid={uuid}
+  data-from={String(fromVersion)}
+  data-to={String(toVersion)}
+  data-identical={identical ? '1' : '0'}
+  data-raw-query={JSON.stringify(rawQuery)}
+  data-from-size={String(fromMeta.fileSize ?? 0)}
+  data-to-size={String(toMeta.fileSize ?? 0)}
+>
+  <header>
+    <a href="/upload" class="brand">λ OpenArtifacts</a>
+    <span class="sep">/</span>
+    <h1 title={title}>{title}</h1>
+
+    <div class="spacer"></div>
+
+    <div class="picker">
+      <select id="fromSelect" aria-label="Compare from version">
+        {versions.map(v => (
+          <option value={v.versionNumber} selected={v.versionNumber === fromVersion}>
+            v{v.versionNumber} · {fmtDate(v.createdAt)}
+          </option>
+        ))}
+      </select>
+      <span class="arrow">→</span>
+      <select id="toSelect" aria-label="Compare to version">
+        {versions.map(v => (
+          <option value={v.versionNumber} selected={v.versionNumber === toVersion}>
+            v{v.versionNumber} · {fmtDate(v.createdAt)}
+          </option>
+        ))}
+      </select>
+      <button id="swapBtn" title="Swap the two versions">⇄</button>
+    </div>
+
+    <a class="btn" href={`/a/${uuid}`}>Open artifact</a>
+    <a class="btn" href="/history">History</a>
+  </header>
+
+  <div class="summary">
+    <span class="stat"><strong>v{fromVersion}</strong> → <strong>v{toVersion}</strong></span>
+    <span class="stat" id="changeCounts">
+      {identical ? <span class="badge same">identical</span> : <span id="countsText">analyzing…</span>}
+    </span>
+    <span class="stat">
+      {fmtBytes(fromMeta.fileSize)} → {fmtBytes(toMeta.fileSize)}
+      <span class={sizeDelta > 0 ? 'add' : sizeDelta < 0 ? 'del' : ''}>
+        ({sizeDelta > 0 ? '+' : ''}{fmtBytes(Math.abs(sizeDelta))})
+      </span>
+    </span>
+    <span class="stat" id="truncWarn" hidden><span class="badge warn">too dissimilar to align — showing a block replace</span></span>
+    <div class="spacer"></div>
+    <label class="stat"><input type="checkbox" id="prettyToggle" checked /> Pretty-print</label>
+    <label class="stat"><input type="checkbox" id="collapseToggle" checked /> Collapse unchanged</label>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-source" aria-selected="true" aria-controls="panel-source">Source</button>
+    <button class="tab" role="tab" id="tab-rendered" aria-selected="false" aria-controls="panel-rendered">Rendered</button>
+    <button class="tab" role="tab" id="tab-prose" aria-selected="false" aria-controls="panel-prose">Prose</button>
+  </div>
+
+  <div class="panel" id="panel-source" role="tabpanel" aria-labelledby="tab-source">
+    <div class="notice" id="sourceStatus"><strong>Loading both versions…</strong></div>
+    <div class="diff" id="sourceDiff"></div>
+  </div>
+
+  <div class="panel" id="panel-rendered" role="tabpanel" aria-labelledby="tab-rendered" hidden>
+    <div class="rendered">
+      <div class="rendered-bar">
+        <label><input type="radio" name="renderMode" value="side" checked /> Side by side</label>
+        <label><input type="radio" name="renderMode" value="overlay" /> Overlay swipe</label>
+        <span class="spacer"></span>
+        <span style="color:var(--text-tertiary)">
+          Independent scrolling — the frames are sandboxed to a separate origin, so they can't be synced.
+        </span>
+      </div>
+      <div class="stage" id="renderStage"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-prose" role="tabpanel" aria-labelledby="tab-prose" hidden>
+    <div class="notice" id="proseStatus"><strong>Loading both versions…</strong></div>
+    <div class="diff" id="proseDiff"></div>
+  </div>
+
+  <script>
+    import { diffLines, pairChanges, countChanges, prettyHtml, extractText, diffTokens } from '../scripts/diff.js';
+
+    const body = document.body;
+    const uuid = body.dataset.uuid;
+    const fromVer = Number(body.dataset.from);
+    const toVer = Number(body.dataset.to);
+    const identical = body.dataset.identical === '1';
+    /**
+     * version -> "exp=...&sig=..." capability signatures minted for this page
+     * load. fetch() below would ride the session cookie on its own, but the
+     * rendered-tab iframes are sandboxed to an opaque origin and cannot, so
+     * both paths use the signed URL. See worker/session.js.
+     */
+    const rawQuery = JSON.parse(body.dataset.rawQuery || '{}');
+    const rawSrc = (v) => `/raw/${uuid}/${v}` + (rawQuery[v] ? `?${rawQuery[v]}` : '');
+
+    /** Above this, diffing is opt-in rather than automatic. */
+    const AUTO_DIFF_LIMIT = 2 * 1024 * 1024;
+    /** Unchanged runs longer than this collapse into a click-to-expand fold. */
+    const CONTEXT = 3;
+
+    const el = (id) => document.getElementById(id);
+    const sourceDiff = el('sourceDiff');
+    const proseDiff = el('proseDiff');
+    const sourceStatus = el('sourceStatus');
+    const proseStatus = el('proseStatus');
+
+    let bodies = null;      // { from, to } raw HTML strings
+    let loadError = null;
+    /** Per-tab change counts, so the summary describes what's on screen. */
+    const tabCounts = { source: null, prose: null };
+
+    // --- tabs ---------------------------------------------------------
+    const tabs = [...document.querySelectorAll('.tab')];
+    tabs.forEach(tab => tab.addEventListener('click', () => {
+      tabs.forEach(t => {
+        const on = t === tab;
+        t.setAttribute('aria-selected', String(on));
+        el(t.getAttribute('aria-controls')).hidden = !on;
+      });
+      if (tab.id === 'tab-rendered') mountRendered();
+      if (tab.id === 'tab-prose') renderProse();
+      if (tab.id !== 'tab-rendered') showCounts(tab.id === 'tab-prose' ? 'prose' : 'source');
+    }));
+
+    // --- version pickers ----------------------------------------------
+    function navigate(from, to) {
+      window.location.href = `/a/${uuid}/diff?from=${from}&to=${to}`;
+    }
+    el('fromSelect').addEventListener('change', (e) => navigate(e.target.value, toVer));
+    el('toSelect').addEventListener('change', (e) => navigate(fromVer, e.target.value));
+    el('swapBtn').addEventListener('click', () => navigate(toVer, fromVer));
+
+    // --- fetching -------------------------------------------------------
+    async function fetchVersion(v) {
+      const res = await fetch(rawSrc(v), { credentials: 'same-origin' });
+      if (!res.ok) throw new Error(`v${v} returned ${res.status}`);
+      return res.text();
+    }
+
+    async function loadBodies() {
+      if (bodies || loadError) return;
+      try {
+        const [from, to] = await Promise.all([fetchVersion(fromVer), fetchVersion(toVer)]);
+        bodies = { from, to };
+      } catch (err) {
+        loadError = err;
+      }
+    }
+
+    // --- rendering helpers ---------------------------------------------
+    const esc = (s) => String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    /** Renders word-level ops into <ins>/<del>-marked HTML for one side. */
+    function wordHtml(words, side) {
+      if (!words) return '';
+      let out = '';
+      for (const w of words) {
+        if (w.type === 'equal') out += esc(w.a);
+        else if (w.type === 'del' && side === 'a') out += `<del>${esc(w.a)}</del>`;
+        else if (w.type === 'ins' && side === 'b') out += `<ins>${esc(w.b)}</ins>`;
+      }
+      return out;
+    }
+
+    function rowHtml(cls, aNo, bNo, mark, codeHtml) {
+      return `<div class="row ${cls}">`
+        + `<span class="gutter"><span>${aNo ?? ''}</span><span>${bNo ?? ''}</span></span>`
+        + `<span class="mark">${mark}</span>`
+        + `<span class="code">${codeHtml}</span>`
+        + '</div>';
+    }
+
+    /**
+     * Turns an op list into HTML, collapsing long unchanged runs so a
+     * one-line change in a 40 000-line document is actually findable.
+     */
+    /** Hidden rows behind each fold, keyed by the index stamped on the fold. */
+    let foldStore = [];
+
+    /** Repaints the summary badge for whichever tab is showing. */
+    function showCounts(which) {
+      const el0 = el('countsText');
+      if (!el0) return;
+      const c = tabCounts[which];
+      if (!c) { el0.textContent = 'analyzing…'; return; }
+      const noun = which === 'prose' ? 'text blocks' : 'lines';
+      el0.innerHTML = (c.added || c.removed)
+        ? `<span class="add">+${c.added}</span> <span class="del">-${c.removed}</span> ${noun}`
+        : `<span class="badge same">no ${which === 'prose' ? 'text' : 'source'} changes</span>`;
+    }
+
+    function activeTab() {
+      const on = document.querySelector('.tab[aria-selected="true"]');
+      return on && on.id === 'tab-prose' ? 'prose' : 'source';
+    }
+
+    function renderOps(ops, collapse) {
+      foldStore = [];
+      const html = [];
+      let aNo = 0;
+      let bNo = 0;
+      let run = [];
+
+      const flushRun = () => {
+        if (!run.length) return;
+        const hideFrom = html.length === 0 ? 0 : CONTEXT;
+        const hideTo = run.length - CONTEXT;
+        if (!collapse || run.length <= CONTEXT * 2 + 1) {
+          html.push(...run.map(r => r.html));
+        } else {
+          html.push(...run.slice(0, hideFrom).map(r => r.html));
+          const hidden = run.slice(hideFrom, hideTo);
+          if (hidden.length) {
+            const idx = foldStore.push(hidden.map(r => r.html).join('')) - 1;
+            html.push(`<div class="fold" data-fold="${idx}">`
+              + `⋯ ${hidden.length} unchanged line${hidden.length === 1 ? '' : 's'} — click to expand</div>`);
+          }
+          html.push(...run.slice(Math.max(hideTo, hideFrom)).map(r => r.html));
+        }
+        run = [];
+      };
+
+      for (const op of ops) {
+        if (op.type === 'equal') {
+          aNo++; bNo++;
+          run.push({ html: rowHtml('eq', aNo, bNo, ' ', esc(op.a)) });
+          continue;
+        }
+        flushRun();
+        if (op.type === 'mod') {
+          aNo++; bNo++;
+          html.push(rowHtml('del', aNo, '', '-', wordHtml(op.words, 'a')));
+          html.push(rowHtml('ins', '', bNo, '+', wordHtml(op.words, 'b')));
+        } else if (op.type === 'del') {
+          aNo++;
+          html.push(rowHtml('del', aNo, '', '-', esc(op.a)));
+        } else {
+          bNo++;
+          html.push(rowHtml('ins', '', bNo, '+', esc(op.b)));
+        }
+      }
+      flushRun();
+      return html.join('');
+    }
+
+    function wireFolds(container) {
+      container.querySelectorAll('.fold').forEach(fold => {
+        fold.addEventListener('click', () => {
+          fold.outerHTML = foldStore[Number(fold.dataset.fold)] ?? '';
+        }, { once: true });
+      });
+    }
+
+    // --- source tab -----------------------------------------------------
+    let sourceRendered = false;
+
+    async function renderSource(force) {
+      if (sourceRendered && !force) return;
+      sourceStatus.hidden = false;
+      sourceStatus.innerHTML = '<strong>Loading both versions…</strong>';
+      sourceDiff.innerHTML = '';
+
+      await loadBodies();
+      if (loadError) {
+        sourceStatus.innerHTML = `<strong>Could not load the versions</strong>${esc(loadError.message)}`
+          + '<div style="margin-top:8px">If this is a 401, your access token is missing or expired.</div>';
+        return;
+      }
+
+      const total = bodies.from.length + bodies.to.length;
+      if (total > AUTO_DIFF_LIMIT && !force) {
+        sourceStatus.innerHTML = '<strong>Large artifact</strong>'
+          + `These two versions total ${(total / 1048576).toFixed(1)} MB. `
+          + 'Diffing may take a moment.<br><br>'
+          + '<button id="forceDiff">Compare anyway</button>';
+        el('forceDiff').addEventListener('click', () => renderSource(true));
+        return;
+      }
+
+      const pretty = el('prettyToggle').checked;
+      const a = pretty ? prettyHtml(bodies.from) : bodies.from;
+      const b = pretty ? prettyHtml(bodies.to) : bodies.to;
+
+      const { ops, truncated } = diffLines(a, b);
+      const paired = pairChanges(ops);
+      const counts = countChanges(paired);
+
+      el('truncWarn').hidden = !truncated;
+      tabCounts.source = counts;
+      if (activeTab() === 'source') showCounts('source');
+
+      sourceStatus.hidden = true;
+      sourceDiff.innerHTML = renderOps(paired, el('collapseToggle').checked);
+      wireFolds(sourceDiff);
+      sourceRendered = true;
+    }
+
+    el('prettyToggle').addEventListener('change', () => { sourceRendered = false; renderSource(true); });
+    el('collapseToggle').addEventListener('change', () => {
+      sourceRendered = false; renderSource(true);
+      if (!el('panel-prose').hidden) { proseRendered = false; renderProse(); }
+    });
+
+    // --- prose tab ------------------------------------------------------
+    let proseRendered = false;
+
+    async function renderProse() {
+      if (proseRendered) return;
+      proseStatus.hidden = false;
+      proseDiff.innerHTML = '';
+
+      await loadBodies();
+      if (loadError) {
+        proseStatus.innerHTML = `<strong>Could not load the versions</strong>${esc(loadError.message)}`;
+        return;
+      }
+
+      const a = extractText(bodies.from);
+      const b = extractText(bodies.to);
+      const { ops } = diffTokens(a, b);
+      const paired = pairChanges(ops);
+      const counts = countChanges(paired);
+
+      tabCounts.prose = counts;
+      if (activeTab() === 'prose') showCounts('prose');
+
+      if (!counts.added && !counts.removed) {
+        proseStatus.hidden = false;
+        proseStatus.innerHTML = '<strong>No visible text changed</strong>'
+          + 'The rendered wording is identical. Any difference is in markup, styling or scripts — see the Source tab.';
+        proseRendered = true;
+        return;
+      }
+
+      proseStatus.hidden = true;
+      proseDiff.innerHTML = renderOps(paired, el('collapseToggle').checked);
+      wireFolds(proseDiff);
+      proseRendered = true;
+    }
+
+    // --- rendered tab ---------------------------------------------------
+    let renderedMounted = false;
+
+    function mountRendered() {
+      if (renderedMounted) return;
+      renderedMounted = true;
+      drawRendered(document.querySelector('input[name="renderMode"]:checked').value);
+    }
+
+    document.querySelectorAll('input[name="renderMode"]').forEach(radio => {
+      radio.addEventListener('change', (e) => drawRendered(e.target.value));
+    });
+
+    const SANDBOX = 'allow-scripts allow-forms allow-popups allow-modals';
+
+    function frame(v) {
+      return `<iframe src="${rawSrc(v)}" sandbox="${SANDBOX}" loading="lazy" title="Version ${v}"></iframe>`;
+    }
+
+    function drawRendered(mode) {
+      const stage = el('renderStage');
+      if (mode === 'side') {
+        stage.innerHTML = '<div class="side-by-side">'
+          + `<div class="side"><div class="side-label">v${fromVer} (before)</div>${frame(fromVer)}</div>`
+          + `<div class="side"><div class="side-label">v${toVer} (after)</div>${frame(toVer)}</div>`
+          + '</div>';
+        return;
+      }
+
+      // Overlay: two stacked frames, the top one clipped by a draggable
+      // divider. Uses only CSS clipping, so it needs no cross-origin access
+      // into either frame.
+      stage.innerHTML = '<div class="overlay">'
+        + `<div class="layer">${frame(toVer)}</div>`
+        + `<div class="layer top" id="topLayer">${frame(fromVer)}</div>`
+        + '<div class="swipe" id="swipe"><div class="swipe-grip">⇄</div></div>'
+        + '</div>';
+
+      const top = el('topLayer');
+      const swipe = el('swipe');
+      let pct = 50;
+
+      const apply = () => {
+        top.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+        swipe.style.left = `${pct}%`;
+      };
+      apply();
+
+      const move = (clientX) => {
+        const rect = stage.getBoundingClientRect();
+        pct = Math.min(100, Math.max(0, ((clientX - rect.left) / rect.width) * 100));
+        apply();
+      };
+      const onMove = (e) => move(e.touches ? e.touches[0].clientX : e.clientX);
+      const stop = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', stop);
+      };
+      swipe.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', stop);
+      });
+    }
+
+    // --- boot -------------------------------------------------------------
+    if (identical) {
+      sourceStatus.innerHTML = '<strong>These two versions are byte-identical</strong>'
+        + 'Their content hashes match, so there is nothing to compare.';
+      proseStatus.innerHTML = '<strong>These two versions are byte-identical</strong>';
+      proseRendered = true;
+      sourceRendered = true;
+    } else {
+      renderSource(false);
+    }
+  </script>
+</body>
+</html>

@@ -17,8 +17,22 @@ export function getConfig() {
     maxFileSizeMb: intVar(env.MAX_FILE_SIZE_MB, 25),
     uploadRateLimitPerMin: intVar(env.UPLOAD_RATE_LIMIT_PER_MIN, 30),
     readRateLimitPerMin: intVar(env.READ_RATE_LIMIT_PER_MIN, 500),
+    // 0 / "never" is a legitimate value here (keep everything forever), so this
+    // can't go through intVar, which treats non-positives as "use the fallback".
+    defaultTtlDays: env.DEFAULT_TTL_DAYS ?? null,
     accessToken: env.ARTIFACT_ACCESS_TOKEN || '',
-    nodeEnv: env.NODE_ENV || 'production'
+    nodeEnv: env.NODE_ENV || 'production',
+    // Read gating is on unless explicitly switched off. Fail-closed: a typo in
+    // the var must not silently republish the whole catalogue.
+    readAuthEnabled: !['0', 'false', 'off', 'no'].includes(
+      String(env.READ_AUTH_ENABLED ?? '1').toLowerCase()),
+    // Bumping this revokes every outstanding session cookie and capability URL
+    // without rotating the token (which would break every CLI consumer).
+    sessionEpoch: String(env.SESSION_EPOCH || '1'),
+    sessionRateLimitPerMin: intVar(env.SESSION_RATE_LIMIT_PER_MIN, 20),
+    // Instance-wide backstop against distributed credential guessing, where
+    // per-visitor limits are useless. 0 disables it.
+    authFailureLimitPerMin: Math.max(0, parseInt(env.AUTH_FAILURE_LIMIT_PER_MIN ?? '600', 10) || 0)
   };
 }
 
@@ -118,6 +132,7 @@ export function mapError(err) {
     INVALID_UUID_FORMAT: [400, 'The provided artifact ID must be a valid RFC 4122 UUID-4 string.'],
     ARTIFACT_NOT_FOUND: [404, message || 'Artifact not found.'],
     VERSION_NOT_FOUND: [404, message || 'The requested artifact version does not exist.'],
+    ARTIFACT_EXPIRED: [410, message || 'This artifact has expired and is no longer available.'],
     UNAUTHORIZED: [401, message || 'Unauthorized access.']
   };
 
