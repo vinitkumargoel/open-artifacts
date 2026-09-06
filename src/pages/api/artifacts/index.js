@@ -3,7 +3,7 @@
  * Ported one-for-one from the legacy Hono worker (since removed; see git history).
  */
 import { env } from 'cloudflare:workers';
-import { listAllArtifacts, processArtifactUpload } from '../../../../worker/storage.js';
+import { listAllArtifacts, processArtifactUpload, resolveTtlDays } from '../../../../worker/storage.js';
 import { json, jsonError, baseUrl, authGuard, getConfig, mapError, drainBody } from '../../../lib/http.js';
 import { handleBulkDelete } from '../../../lib/artifacts.js';
 
@@ -55,6 +55,7 @@ export async function POST({ request }) {
   const id = form.get('id');
   const title = form.get('title');
   const description = form.get('description');
+  const ttl = form.get('ttl');
 
   let result;
   try {
@@ -63,7 +64,9 @@ export async function POST({ request }) {
       file,
       id: typeof id === 'string' ? id : undefined,
       title: typeof title === 'string' ? title : undefined,
-      description: typeof description === 'string' ? description : undefined
+      description: typeof description === 'string' ? description : undefined,
+      ttl: typeof ttl === 'string' ? ttl : undefined,
+      defaultTtlDays: resolveTtlDays(config.defaultTtlDays)
     });
   } catch (err) {
     // Storage-level validation errors (empty file, unknown id, bad UUID) carry
@@ -81,6 +84,8 @@ export async function POST({ request }) {
     title: result.artifact.title,
     description: result.artifact.description,
     isNew: result.isNew,
+    ttlDays: result.artifact.ttlDays,
+    expiresAt: result.artifact.expiresAt,
     url: `${origin}/a/${artifactId}`,
     rawUrl: `${origin}/raw/${artifactId}/${version}`,
     createdAt: result.artifact.updatedAt || result.artifact.createdAt

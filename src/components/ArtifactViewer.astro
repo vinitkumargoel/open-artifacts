@@ -8,7 +8,7 @@
  * assembled as a string and injected with set:html so it stays byte-identical
  * to the legacy view's output.
  */
-const { artifact, currentVersion, baseUrl = '' } = Astro.props;
+const { artifact, currentVersion, baseUrl = '', rawQuery = {} } = Astro.props;
 
 const uuid = artifact._id;
 const title = artifact.title || 'Untitled Artifact';
@@ -21,6 +21,16 @@ if (versions.length === 0) {
   versions.push({ versionNumber: 1, description: '', createdAt: artifact.createdAt });
 }
 
+// Capability-signed frame source. The frame runs at an opaque origin under a
+// CSP sandbox, so it can carry neither a header nor (reliably) the cookie —
+// the shell signs the URL for it. See worker/session.js.
+const frameSrc = (v) => {
+  const q = rawQuery[v];
+  return `/raw/${uuid}/${v}${q ? `?${q}` : ''}`;
+};
+// The "open raw" link stays unsigned on purpose: it is a top-level same-site
+// navigation, so SameSite=Lax sends the session cookie, and an unsigned URL
+// stays bookmarkable instead of going stale in an hour.
 const rawUrl = `/raw/${uuid}/${activeVer}`;
 const currentViewUrl = `${baseUrl}/a/${uuid}${activeVer === latestVer ? '' : `/v/${activeVer}`}`;
 
@@ -28,10 +38,34 @@ const currentViewUrl = `${baseUrl}/a/${uuid}${activeVer === latestVer ? '' : `/v
 const activeVersionObj = versions.find(v => v.versionNumber === activeVer);
 const versionNote = activeVersionObj?.description || '';
 
+// Compare against the version immediately before the active one. `versions` is
+// sorted newest-first, so that's the next entry along.
+const activeIdx = versions.findIndex(v => v.versionNumber === activeVer);
+const compareFrom = activeIdx >= 0 && activeIdx + 1 < versions.length
+  ? versions[activeIdx + 1].versionNumber
+  : null;
+const compareUrl = compareFrom !== null
+  ? `/a/${uuid}/diff?from=${compareFrom}&to=${activeVer}`
+  : null;
+
+// Retention warning, surfaced only once expiry is close enough to act on.
+const expiresAt = artifact.expiresAt || null;
+const daysLeft = expiresAt
+  ? Math.ceil((Date.parse(expiresAt) - Date.now()) / 86400000)
+  : null;
+const showExpiry = daysLeft !== null && Number.isFinite(daysLeft) && daysLeft <= 7;
+
 const viewerScript = `
     const uuid = ${JSON.stringify(uuid)};
     let activeVersion = ${activeVer};
     let latestVersion = ${latestVer};
+    // version -> "exp=...&sig=..." minted by the server for this page load.
+    const rawQuery = ${JSON.stringify(rawQuery)};
+
+    function frameSrc(ver) {
+      const q = rawQuery[ver];
+      return '/raw/' + uuid + '/' + ver + (q ? '?' + q : '');
+    }
 
     // Stamp the initial history entry so popstate can restore it later
     window.history.replaceState({ version: activeVersion }, '', window.location.pathname);
@@ -39,7 +73,7 @@ const viewerScript = `
     function changeVersion(newVer) {
       activeVersion = parseInt(newVer, 10);
       const frame = document.getElementById('artifactFrame');
-      frame.src = '/raw/' + uuid + '/' + activeVersion;
+      frame.src = frameSrc(activeVersion);
 
       // Update URL with history.pushState without full page reload
       const newPath = activeVersion === latestVersion ? '/a/' + uuid : '/a/' + uuid + '/v/' + activeVersion;
@@ -76,6 +110,25 @@ const viewerScript = `
       });
     }
 
+    // Drops both halves of the read grant: the cookie the server checks and
+    // the token in storage that /unlock would otherwise replay straight back.
+    async function lockBrowser() {
+      const pill = document.getElementById('sessionPill');
+      pill.disabled = true;
+      try {
+        localStorage.removeItem('open_artifacts_token');
+        sessionStorage.removeItem('open_artifacts_token');
+      } catch (err) {
+        // Storage unavailable; the cookie below is the part that matters.
+      }
+      try {
+        await fetch('/api/session', { method: 'DELETE' });
+      } catch (err) {
+        // Offline: the cookie lapses on its own within the week.
+      }
+      window.location.href = '/unlock?next=' + encodeURIComponent(window.location.pathname);
+    }
+
     function showToast(msg) {
       const toast = document.getElementById('toast');
       toast.textContent = msg;
@@ -93,7 +146,7 @@ const viewerScript = `
       }
       activeVersion = ver;
       document.getElementById('versionSelect').value = String(ver);
-      document.getElementById('artifactFrame').src = '/raw/' + uuid + '/' + ver;
+      document.getElementById('artifactFrame').src = frameSrc(ver);
     });
   `;
 ---
@@ -220,6 +273,47 @@ const viewerScript = `
       flex-shrink: 2;
       border-left: 1px solid var(--border);
       padding-left: 10px;
+    }
+
+    .expiry-chip {
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      color: #7a2e0e;
+      background: #fff4ed;
+      border: 1px solid #fdba74;
+      border-radius: 999px;
+      padding: 2px 8px;
+      flex-shrink: 0;
+    }
+
+    .session-pill {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      height: 30px;
+      padding: 0 9px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .session-pill:hover {
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+    }
+
+    .session-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success, #16a34a);
+      flex-shrink: 0;
     }
 
     /* ============ Controls ============ */
@@ -429,6 +523,11 @@ const viewerScript = `
       <span class="brand-sep">/</span>
       <h1 class="artifact-title" title={description || title}>{title}</h1>
       {versionNote && <span class="version-note" title={versionNote}>{versionNote}</span>}
+      {showExpiry && (
+        <span class="expiry-chip" title={`This artifact is scheduled for deletion on ${expiresAt}`}>
+          expires in {daysLeft <= 0 ? 'under a day' : `${daysLeft}d`}
+        </span>
+      )}
     </div>
 
     <div class="viewer-controls">
@@ -443,6 +542,12 @@ const viewerScript = `
           </option>;
         })}
       </select>
+
+      {compareUrl && (
+        <a href={compareUrl} class="icon-btn" title={`Compare v${compareFrom} with v${activeVer}`} aria-label="Compare versions">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3v18m6-18v18M4 7h5m6 10h5M4 17h5m6-10h5"></path></svg>
+        </a>
+      )}
 
       <!-- Viewport Device Switcher -->
       <div class="viewport-group" role="group" aria-label="Responsive device previews">
@@ -472,9 +577,17 @@ const viewerScript = `
       <a href={rawUrl} target="_blank" rel="noopener noreferrer" class="icon-btn" title="Open raw HTML in new tab" aria-label="Open raw HTML in new tab">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 18l6-6-6-6M8 6l-6 6 6 6"></path></svg>
       </a>
-      <button class="copy-btn" onclick="copyShareUrl()" title="Copy public link">
+      <button class="copy-btn" onclick="copyShareUrl()" title="Copy link to this version">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"></path></svg>
         <span>Copy Link</span>
+      </button>
+
+      <!-- Reaching this page at all means the read session is valid, so the
+           pill is a lock control rather than a status indicator. -->
+      <button type="button" class="session-pill" id="sessionPill" onclick="lockBrowser()"
+              title="Forget the access token on this device and lock the viewer">
+        <span class="session-dot"></span>
+        <span>unlocked</span>
       </button>
     </div>
   </header>
@@ -484,7 +597,7 @@ const viewerScript = `
     <iframe
       id="artifactFrame"
       class="viewport-frame"
-      src={rawUrl}
+      src={frameSrc(activeVer)}
       sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"
       loading="eager"
       title={title}>

@@ -93,3 +93,22 @@ export async function checkRateLimit({ request, env, scope, limit }) {
   const verdict = await stub.hit(limit, WINDOW_MS);
   return { ...verdict, limit };
 }
+
+/**
+ * Counts one event against a single instance-wide window rather than a
+ * per-visitor one.
+ *
+ * Per-IP limiting is useless against a distributed credential-guessing attack:
+ * every source address gets its own uncontended Durable Object and therefore
+ * its own full budget. This is the backstop for that, so it is only ever fed
+ * failures — a legitimate visitor with a valid token never touches it, and it
+ * stays a cold object under normal traffic.
+ *
+ * @param {{env: object, scope: string, limit: number}} params
+ */
+export async function checkGlobalRateLimit({ env, scope, limit }) {
+  const id = env.RATE_LIMITER.idFromName(`${scope}:global`);
+  const stub = env.RATE_LIMITER.get(id);
+  const verdict = await stub.hit(limit, WINDOW_MS);
+  return { ...verdict, limit };
+}

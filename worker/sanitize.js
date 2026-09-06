@@ -93,3 +93,20 @@ export function extractDescriptionFromHtml(htmlContent, maxLength = 500) {
 
   return '';
 }
+
+/**
+ * Validates a post-unlock redirect target.
+ *
+ * Anything but a single-slash, same-origin path is an open redirect, so it
+ * falls back to the history page. Backslashes are rejected too: some browsers
+ * normalise them to slashes, which makes "/\evil.example" leave the origin.
+ *
+ * @param {unknown} value raw `next` query parameter
+ * @returns {string} a safe same-origin path
+ */
+export function safeNextPath(value) {
+  if (typeof value !== 'string' || value === '') return '/history';
+  if (!value.startsWith('/') || value.startsWith('//')) return '/history';
+  if (value.includes('\\')) return '/history';
+  return value;
+}

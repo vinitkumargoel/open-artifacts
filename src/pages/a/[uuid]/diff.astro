@@ -1,0 +1,71 @@
+---
+// GET /a/:uuid/diff?from=N&to=M — compare two versions of an artifact.
+// Defaults to the last change: latest-1 -> latest.
+import { env } from 'cloudflare:workers';
+import VersionDiff from '../../../components/VersionDiff.astro';
+import { VIEWER_SECURITY_HEADERS } from '../../../../worker/headers.js';
+import { isValidUuid4, parsePositiveInt } from '../../../../worker/sanitize.js';
+import { getArtifactMetadata, isExpired } from '../../../../worker/storage.js';
+import { htmlErrorPage } from '../../../lib/http.js';
+import { signVersionUrls } from '../../../lib/readauth.js';
+
+export const prerender = false;
+
+const { uuid } = Astro.params;
+
+if (!isValidUuid4(uuid)) {
+  return htmlErrorPage(400, 'Invalid Artifact ID', 'The requested artifact ID is not a valid UUID-4 format.');
+}
+
+const metadata = await getArtifactMetadata(env.ARTIFACTS, uuid);
+if (!metadata) {
+  return htmlErrorPage(404, 'Artifact Not Found (404)', `No artifact found with ID: <code>${uuid}</code>`);
+}
+
+if (isExpired(metadata)) {
+  return htmlErrorPage(410, 'Artifact Expired (410)',
+    `This artifact reached the end of its retention window on ${new Date(metadata.expiresAt).toLocaleString()} and has been removed.`);
+}
+
+const versions = (metadata.versions || []).map(v => v.versionNumber).sort((a, b) => a - b);
+if (versions.length < 2) {
+  return htmlErrorPage(400, 'Nothing to Compare',
+    `Artifact <code>${uuid}</code> has only one version. Publish another version to see a diff.`);
+}
+
+const latest = metadata.latestVersion || versions[versions.length - 1];
+const url = new URL(Astro.request.url);
+
+// An absent or unparseable query param falls back to the default comparison
+// rather than erroring — a bare /diff link is the common case.
+const parseVer = (raw, fallback) => {
+  if (raw === null) return fallback;
+  const n = parsePositiveInt(raw);
+  return isNaN(n) ? fallback : n;
+};
+
+const previous = versions[versions.indexOf(latest) - 1] ?? versions[versions.length - 2];
+const fromVersion = parseVer(url.searchParams.get('from'), previous);
+const toVersion = parseVer(url.searchParams.get('to'), latest);
+
+for (const [label, v] of [['from', fromVersion], ['to', toVersion]]) {
+  if (!versions.includes(v)) {
+    return htmlErrorPage(404, 'Version Not Found (404)',
+      `Version ${v} (${label}) does not exist for artifact <code>${uuid}</code>.`);
+  }
+}
+
+// Signed URLs for the side-by-side frames. The client-side source diff uses
+// fetch(), which carries the session cookie on its own, but a sandboxed frame
+// cannot — see worker/session.js.
+const rawQuery = await signVersionUrls(uuid, versions);
+
+for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
+  Astro.response.headers.set(k, v);
+}
+Astro.response.headers.set('Content-Type', 'text/html; charset=UTF-8');
+// The version list is embedded in the shell, so a cached page would hide a
+// newly published version from the pickers.
+Astro.response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+---
+<VersionDiff artifact={metadata} fromVersion={fromVersion} toVersion={toVersion} rawQuery={rawQuery} />

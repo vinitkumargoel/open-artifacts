@@ -3,7 +3,7 @@
  */
 import { env } from 'cloudflare:workers';
 import { isValidUuid4 } from '../../../../worker/sanitize.js';
-import { getArtifactMetadata } from '../../../../worker/storage.js';
+import { getArtifactMetadata, isExpired } from '../../../../worker/storage.js';
 import { jsonError } from '../../../lib/http.js';
 
 export const prerender = false;
@@ -18,6 +18,10 @@ export async function GET({ params }) {
   const metadata = await getArtifactMetadata(env.ARTIFACTS, uuid);
   if (!metadata) {
     return jsonError('ARTIFACT_NOT_FOUND', `Artifact with ID ${uuid} not found.`, 404);
+  }
+
+  if (isExpired(metadata)) {
+    return jsonError('ARTIFACT_EXPIRED', `Artifact ${uuid} expired on ${metadata.expiresAt} and is no longer available.`, 410);
   }
 
   const latestVer = metadata.latestVersion || 1;

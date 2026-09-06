@@ -6,8 +6,14 @@
  */
 import { env } from 'cloudflare:workers';
 import { isValidUuid4 } from '../../worker/sanitize.js';
-import { getArtifactMetadata, deleteArtifact, bulkDeleteArtifacts } from '../../worker/storage.js';
-import { json, jsonError, baseUrl, authGuard } from './http.js';
+import {
+  getArtifactMetadata,
+  deleteArtifact,
+  bulkDeleteArtifacts,
+  setArtifactTtl,
+  isExpired
+} from '../../worker/storage.js';
+import { json, jsonError, baseUrl, authGuard, mapError } from './http.js';
 
 export async function handleGetOne(request, uuid) {
   if (!isValidUuid4(uuid)) {
@@ -18,6 +24,11 @@ export async function handleGetOne(request, uuid) {
   if (!artifact) {
     return jsonError('ARTIFACT_NOT_FOUND', `Artifact with ID ${uuid} not found.`, 404);
   }
+  // Lazy expiry: never serve a lapsed artifact, even if the daily sweep hasn't
+  // reached it yet (or is switched off).
+  if (isExpired(artifact)) {
+    return jsonError('ARTIFACT_EXPIRED', `Artifact ${uuid} expired on ${artifact.expiresAt} and is no longer available.`, 410);
+  }
 
   const origin = baseUrl(request);
   return json({
@@ -26,6 +37,8 @@ export async function handleGetOne(request, uuid) {
     description: artifact.description,
     latestVersion: artifact.latestVersion,
     viewCount: artifact.viewCount || 0,
+    ttlDays: artifact.ttlDays ?? null,
+    expiresAt: artifact.expiresAt || null,
     url: `${origin}/a/${artifact._id}`,
     rawUrl: `${origin}/raw/${artifact._id}/${artifact.latestVersion}`,
     versions: (artifact.versions || []).map(v => ({
@@ -40,6 +53,45 @@ export async function handleGetOne(request, uuid) {
     createdAt: artifact.createdAt,
     updatedAt: artifact.updatedAt
   }, { headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } });
+}
+
+/**
+ * PATCH /api/artifacts/:uuid — change retention without publishing a version.
+ * Body: {"ttl": <days>} or {"ttl": "never"}. Write operation, so it needs the
+ * publisher token like every other mutation.
+ */
+export async function handleSetTtl(request, uuid) {
+  const denied = await authGuard(request);
+  if (denied) return denied;
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (err) {
+    body = {};
+  }
+  if (!body || typeof body !== 'object') body = {};
+
+  if (!('ttl' in body)) {
+    return jsonError('INVALID_REQUEST', 'Request body must include a "ttl" field: a number of days, or "never".', 400);
+  }
+
+  let updated;
+  try {
+    updated = await setArtifactTtl(env.ARTIFACTS, uuid, body.ttl);
+  } catch (err) {
+    return mapError(err);
+  }
+
+  return json({
+    success: true,
+    id: updated._id,
+    ttlDays: updated.ttlDays,
+    expiresAt: updated.expiresAt,
+    message: updated.expiresAt
+      ? `Artifact ${updated._id} now expires on ${updated.expiresAt}.`
+      : `Artifact ${updated._id} will be kept indefinitely.`
+  });
 }
 
 export async function handleDeleteOne(request, uuid) {

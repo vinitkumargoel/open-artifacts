@@ -4,8 +4,9 @@ import { env } from 'cloudflare:workers';
 import ArtifactViewer from '../../../../components/ArtifactViewer.astro';
 import { VIEWER_SECURITY_HEADERS } from '../../../../../worker/headers.js';
 import { isValidUuid4, parsePositiveInt } from '../../../../../worker/sanitize.js';
-import { getArtifactMetadata } from '../../../../../worker/storage.js';
+import { getArtifactMetadata, isExpired } from '../../../../../worker/storage.js';
 import { htmlErrorPage, baseUrl } from '../../../../lib/http.js';
+import { signVersionUrls } from '../../../../lib/readauth.js';
 
 export const prerender = false;
 
@@ -25,17 +26,31 @@ if (!metadata) {
   return htmlErrorPage(404, 'Artifact Not Found (404)', `No artifact found with ID: <code>${uuid}</code>`);
 }
 
+// Lazy expiry: the daily sweep may not have reached this artifact yet, and it
+// may be switched off entirely.
+if (isExpired(metadata)) {
+  return htmlErrorPage(410, 'Artifact Expired (410)',
+    `This artifact reached the end of its retention window on ${new Date(metadata.expiresAt).toLocaleString()} and has been removed.`);
+}
+
 const hasVersion = (metadata.versions || []).some(v => v.versionNumber === verNum);
 if (!hasVersion) {
   return htmlErrorPage(404, 'Version Not Found (404)', `Version ${verNum} does not exist for artifact <code>${uuid}</code>.`);
 }
 
+// One signed URL per version: the frame is sandboxed to an opaque origin and
+// cannot authenticate itself. See worker/session.js.
+const versionNumbers = (metadata.versions || []).map(v => v.versionNumber);
+const rawQuery = await signVersionUrls(uuid, versionNumbers.length ? versionNumbers : [verNum]);
+
 for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
   Astro.response.headers.set(k, v);
 }
 Astro.response.headers.set('Content-Type', 'text/html; charset=UTF-8');
-// Short TTL: the shell embeds the version dropdown, so a long cache would
-// hide newly published versions on pinned pages. Raw content stays immutable.
-Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+// no-store, not a short public TTL: the shell body carries the title,
+// description and full version list, and it now embeds signed capability URLs
+// for the frame. A cached copy would keep serving all of that after the
+// session is dropped, and would hide newly published versions besides.
+Astro.response.headers.set('Cache-Control', 'no-store');
 ---
-<ArtifactViewer artifact={metadata} currentVersion={verNum} baseUrl={baseUrl(Astro.request)} />
+<ArtifactViewer artifact={metadata} currentVersion={verNum} baseUrl={baseUrl(Astro.request)} rawQuery={rawQuery} />

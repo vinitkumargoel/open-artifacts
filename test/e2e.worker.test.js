@@ -39,11 +39,29 @@ let devProcessError = null;
 let devLog = '';
 const DEV_LOG_PATH = path.join(PROJECT_ROOT, '.wrangler', 'e2e-dev.log');
 
-function get(pathName, { visitor = 'default-visitor', headers = {} } = {}) {
-  return fetch(`${BASE}${pathName}`, {
-    headers: { 'x-e2e-visitor': visitor, ...headers },
-    redirect: 'manual'
+/**
+ * Reads are token-gated, so every GET carries the bearer token by default.
+ * Pass `{ auth: false }` to exercise the unauthenticated path, or `cookie` to
+ * present a session instead — node's fetch has no cookie jar, so cookie tests
+ * echo getSetCookie() into the header by hand.
+ */
+function get(pathName, { visitor = 'default-visitor', headers = {}, auth = true, cookie = null } = {}) {
+  const merged = { 'x-e2e-visitor': visitor, ...headers };
+  if (auth && !merged.authorization && !merged.Authorization) {
+    merged.authorization = `Bearer ${E2E_TOKEN}`;
+  }
+  if (cookie) merged.cookie = cookie;
+  return fetch(`${BASE}${pathName}`, { headers: merged, redirect: 'manual' });
+}
+
+/** Exchanges the token for a session cookie and returns the Cookie header value. */
+async function openSession({ visitor = 'session-helper', token = E2E_TOKEN } = {}) {
+  const res = await fetch(`${BASE}/api/session`, {
+    method: 'POST',
+    headers: { 'x-e2e-visitor': visitor, authorization: `Bearer ${token}` }
   });
+  const setCookie = res.headers.getSetCookie?.()[0] || res.headers.get('set-cookie') || '';
+  return { status: res.status, cookie: setCookie.split(';')[0] };
 }
 
 function uploadArtifact({ visitor = 'uploader', token = E2E_TOKEN, html, name = 'test.html', id, title, description } = {}) {
@@ -164,7 +182,7 @@ describe('Worker E2E: migrated artifacts are served from R2', () => {
     const res = await get(`/raw/${KNOWN_UUID}/1`, { visitor: 'migration-check' });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-security-policy')).toContain('sandbox allow-scripts');
-    expect(res.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+    expect(res.headers.get('cache-control')).toBe('private, max-age=31536000, immutable');
     const served = await res.text();
     expect(served).toBe(diskContent);
   });
@@ -411,5 +429,229 @@ describe('Worker E2E: per-visitor rate limiting', () => {
 
     const differentSlash64 = await get('/api/artifacts', { visitor: '2001:db8:9:9::1' });
     expect(differentSlash64.status).toBe(200);
+  });
+});
+
+describe('Worker E2E: read authentication', () => {
+  it('rejects unauthenticated API reads with the standard envelope', async () => {
+    const res = await get('/api/artifacts', { visitor: 'ra-api', auth: false });
+    expect(res.status).toBe(401);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const body = await res.json();
+    expect(body.error.code).toBe('UNAUTHORIZED');
+    expect(body.error.status).toBe(401);
+  });
+
+  it('rejects unauthenticated raw reads, including HEAD and the versionless redirect', async () => {
+    expect((await get(`/raw/${KNOWN_UUID}/1`, { visitor: 'ra-raw', auth: false })).status).toBe(401);
+    expect((await get(`/raw/${KNOWN_UUID}`, { visitor: 'ra-raw2', auth: false })).status).toBe(401);
+
+    // HEAD must not survive as a 200-vs-404 existence oracle over the catalogue.
+    const head = await fetch(`${BASE}/raw/${KNOWN_UUID}/1`, {
+      method: 'HEAD',
+      headers: { 'x-e2e-visitor': 'ra-head' },
+      redirect: 'manual'
+    });
+    expect(head.status).toBe(401);
+  });
+
+  it('redirects unauthenticated browser navigations to /unlock', async () => {
+    const res = await get(`/a/${KNOWN_UUID}`, {
+      visitor: 'ra-nav',
+      auth: false,
+      headers: { 'sec-fetch-dest': 'document', accept: 'text/html' }
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`/unlock?next=${encodeURIComponent('/a/' + KNOWN_UUID)}`);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('answers an unauthenticated iframe load with JSON, never a redirect', async () => {
+    // Bouncing a sandboxed frame to /unlock is useless: localStorage throws at
+    // its opaque origin and it cannot navigate the top frame.
+    const res = await get(`/raw/${KNOWN_UUID}/1`, {
+      visitor: 'ra-frame',
+      auth: false,
+      headers: { 'sec-fetch-dest': 'iframe', accept: 'text/html' }
+    });
+    expect(res.status).toBe(401);
+    expect(res.headers.get('content-type')).toContain('application/json');
+  });
+
+  it('leaves the token-entry surface and health check open', async () => {
+    for (const p of ['/healthz', '/', '/upload', '/unlock']) {
+      const res = await get(p, { visitor: 'ra-open', auth: false });
+      expect(res.status, `${p} should be reachable without a token`).toBe(200);
+    }
+  });
+
+  it('never advertises CORS on a gated route, and never allows credentials', async () => {
+    const gated = await get('/api/artifacts', { visitor: 'ra-cors' });
+    expect(gated.status).toBe(200);
+    expect(gated.headers.get('access-control-allow-origin')).toBeNull();
+    expect(gated.headers.get('access-control-allow-credentials')).toBeNull();
+
+    const open = await get('/healthz', { visitor: 'ra-cors' });
+    expect(open.headers.get('access-control-allow-origin')).toBe('*');
+    expect(open.headers.get('access-control-allow-credentials')).toBeNull();
+  });
+
+  it('exchanges the token for a hardened session cookie', async () => {
+    const bad = await fetch(`${BASE}/api/session`, {
+      method: 'POST',
+      headers: { 'x-e2e-visitor': 'ra-sess-bad', authorization: 'Bearer nope' }
+    });
+    expect(bad.status).toBe(401);
+    expect(bad.headers.get('set-cookie')).toBeNull();
+
+    const res = await fetch(`${BASE}/api/session`, {
+      method: 'POST',
+      headers: { 'x-e2e-visitor': 'ra-sess', authorization: `Bearer ${E2E_TOKEN}` }
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).success).toBe(true);
+
+    const setCookie = res.headers.getSetCookie()[0];
+    expect(setCookie).toMatch(/^oa_session=v1\./);
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('Secure');
+    expect(setCookie).toContain('SameSite=Lax');
+    // The raw token must never be the cookie, or a leaked cookie is a publisher key.
+    expect(setCookie).not.toContain(E2E_TOKEN);
+  });
+
+  it('accepts the session cookie for reads', async () => {
+    const { cookie } = await openSession({ visitor: 'ra-cookie' });
+    expect((await get('/api/artifacts', { visitor: 'ra-cookie', auth: false, cookie })).status).toBe(200);
+    expect((await get(`/raw/${KNOWN_UUID}/1`, { visitor: 'ra-cookie', auth: false, cookie })).status).toBe(200);
+    expect((await get(`/a/${KNOWN_UUID}`, { visitor: 'ra-cookie', auth: false, cookie })).status).toBe(200);
+  });
+
+  it('refuses a forged or tampered session cookie', async () => {
+    const { cookie } = await openSession({ visitor: 'ra-forge' });
+    const forged = cookie.slice(0, -4) + 'AAAA';
+    expect((await get('/api/artifacts', { visitor: 'ra-forge', auth: false, cookie: forged })).status).toBe(401);
+    expect((await get('/api/artifacts', {
+      visitor: 'ra-forge2', auth: false, cookie: 'oa_session=v1.9999999999.AAAA.BBBB'
+    })).status).toBe(401);
+  });
+
+  it('never lets the read cookie authorise a write (CSRF separation)', async () => {
+    // The cookie rides along on same-site requests made from inside a
+    // published artifact, and checkOrigin is off — so if authGuard honoured
+    // it, every artifact would be a delete-everything weapon.
+    const { cookie } = await openSession({ visitor: 'ra-csrf' });
+
+    const del = await fetch(`${BASE}/api/artifacts/${KNOWN_UUID}`, {
+      method: 'DELETE',
+      headers: { 'x-e2e-visitor': 'ra-csrf', cookie }
+    });
+    expect(del.status).toBe(401);
+
+    const patch = await fetch(`${BASE}/api/artifacts/${KNOWN_UUID}`, {
+      method: 'PATCH',
+      headers: { 'x-e2e-visitor': 'ra-csrf', cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ ttl: 1 })
+    });
+    expect(patch.status).toBe(401);
+
+    const fd = new FormData();
+    fd.append('file', new File(['<html></html>'], 'x.html', { type: 'text/html' }));
+    const post = await fetch(`${BASE}/api/artifacts`, {
+      method: 'POST',
+      headers: { 'x-e2e-visitor': 'ra-csrf', cookie },
+      body: fd
+    });
+    expect(post.status).toBe(401);
+
+    // ...and the artifact is still there.
+    expect((await get(`/api/artifacts/${KNOWN_UUID}`, { visitor: 'ra-csrf' })).status).toBe(200);
+  });
+
+  it('clears the session on DELETE /api/session', async () => {
+    const res = await fetch(`${BASE}/api/session`, {
+      method: 'DELETE',
+      headers: { 'x-e2e-visitor': 'ra-logout' }
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.getSetCookie()[0]).toContain('Max-Age=0');
+  });
+
+  it('accepts a capability-signed frame URL, scoped to one uuid and version', async () => {
+    // The viewer shell embeds one signature per version; pull a real one out.
+    const shell = await (await get(`/a/${KNOWN_UUID}`, { visitor: 'ra-cap' })).text();
+    const match = /src="(\/raw\/[^"]+)"/.exec(shell);
+    expect(match, 'viewer shell should embed a signed frame src').not.toBeNull();
+
+    const signed = match[1].replace(/&amp;/g, '&');
+    expect(signed).toContain('sig=');
+
+    const ok = await get(signed, { visitor: 'ra-cap', auth: false });
+    expect(ok.status).toBe(200);
+
+    const query = signed.slice(signed.indexOf('?'));
+    // Same signature, different artifact / version / expiry: all rejected.
+    expect((await get(`/raw/${SYNTH_UUIDS[0]}/1${query}`, { visitor: 'ra-cap2', auth: false })).status).toBe(401);
+    expect((await get(`/raw/${KNOWN_UUID}/2${query}`, { visitor: 'ra-cap3', auth: false })).status).toBe(401);
+    expect((await get(
+      `/raw/${KNOWN_UUID}/1${query.replace(/exp=\d+/, 'exp=9999999999')}`,
+      { visitor: 'ra-cap4', auth: false }
+    )).status).toBe(401);
+  });
+
+  it('serves gated pages with a cache posture that cannot outlive the session', async () => {
+    const raw = await get(`/raw/${KNOWN_UUID}/1`, { visitor: 'ra-cache' });
+    expect(raw.headers.get('cache-control')).toBe('private, max-age=31536000, immutable');
+
+    const pinned = await get(`/a/${KNOWN_UUID}/v/1`, { visitor: 'ra-cache' });
+    expect(pinned.status).toBe(200);
+    expect(pinned.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('advertises frame-ancestors self rather than a wildcard it cannot honour', async () => {
+    const res = await get(`/raw/${KNOWN_UUID}/1`, { visitor: 'ra-csp' });
+    expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'self'");
+  });
+
+  it('refuses to bounce the unlock page to another origin', async () => {
+    for (const next of ['//evil.example', 'https://evil.example', '/\\evil.example']) {
+      const html = await (await get(`/unlock?next=${encodeURIComponent(next)}`, {
+        visitor: 'ra-redir', auth: false
+      })).text();
+      expect(html).toContain('const next = "/history"');
+    }
+
+    const good = await (await get(`/unlock?next=${encodeURIComponent('/a/' + KNOWN_UUID)}`, {
+      visitor: 'ra-redir', auth: false
+    })).text();
+    expect(good).toContain(`const next = "/a/${KNOWN_UUID}"`);
+  });
+
+  it('rate limits deletes, which used to be a free token oracle', async () => {
+    // A bad token 401s and a good token with an unknown UUID 404s, so an
+    // unthrottled delete route distinguishes the two for free.
+    for (let i = 0; i < UPLOAD_LIMIT; i++) {
+      const res = await fetch(`${BASE}/api/artifacts/${crypto.randomUUID()}`, {
+        method: 'DELETE',
+        headers: { 'x-e2e-visitor': 'ra-del-rl', authorization: `Bearer ${E2E_TOKEN}` }
+      });
+      expect(res.status).toBe(404);
+    }
+    const throttled = await fetch(`${BASE}/api/artifacts/${crypto.randomUUID()}`, {
+      method: 'DELETE',
+      headers: { 'x-e2e-visitor': 'ra-del-rl', authorization: `Bearer ${E2E_TOKEN}` }
+    });
+    expect(throttled.status).toBe(429);
+  });
+
+  it('keeps rejected reads off the read budget', async () => {
+    // READ_LIMIT+ rejected reads must not exhaust this visitor's read quota:
+    // otherwise anyone sharing a NAT with a crawler gets 429s.
+    for (let i = 0; i < READ_LIMIT + 2; i++) {
+      const res = await get('/api/artifacts', { visitor: 'ra-budget', auth: false });
+      expect([401, 429]).toContain(res.status);
+    }
+    const authorised = await get('/api/artifacts', { visitor: 'ra-budget' });
+    expect(authorised.status).toBe(200);
   });
 });

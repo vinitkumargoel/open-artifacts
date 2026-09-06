@@ -10,7 +10,12 @@ async function sha256Bytes(text) {
   return new Uint8Array(digest);
 }
 
-function timingSafeEqualBytes(a, b) {
+/**
+ * Constant-time byte comparison. Exported because worker/session.js compares
+ * attacker-supplied MACs, where a short-circuiting compare is a remote forgery
+ * oracle.
+ */
+export function timingSafeEqualBytes(a, b) {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) {
