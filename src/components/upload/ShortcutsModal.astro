@@ -1,0 +1,16 @@
+---
+// Keyboard Shortcuts Modal for Studio Publisher
+---
+<div class="modal-backdrop" id="shortcutsModal" onclick="closeModals(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div style="font-weight: 700; font-size: 14px;">Keyboard Shortcuts</div>
+      <button class="nav-btn" onclick="document.getElementById('shortcutsModal').style.display='none'">✕</button>
+    </div>
+    <table class="shortcuts-table">
+      <tr><td><kbd>⌘ / Ctrl + Enter</kbd></td><td style="text-align: right; color: var(--text-secondary);">Publish Artifact</td></tr>
+      <tr><td><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></td><td style="text-align: right; color: var(--text-secondary);">Desktop / Tablet / Mobile View</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td style="text-align: right; color: var(--text-secondary);">Close Dialogs</td></tr>
+    </table>
+  </div>
+</div>

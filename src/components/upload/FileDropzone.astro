@@ -1,0 +1,10 @@
+---
+// Drag-and-drop HTML file dropzone for Studio Publisher
+---
+<div class="dropzone-container" id="dropzone" onclick="document.getElementById('fileInput').click()">
+  <svg class="dropzone-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+  <div class="dropzone-title" id="dropTitle">Choose HTML file or drag here</div>
+  <div class="dropzone-sub">Standalone interactive HTML, Canvas, or React bundle</div>
+  <div class="file-chip" id="fileChip" style="display: none;"></div>
+  <input type="file" id="fileInput" name="file" accept=".html,.htm" style="display: none;" onchange="handleFileChange(this)">
+</div>

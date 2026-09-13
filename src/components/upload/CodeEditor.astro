@@ -1,0 +1,18 @@
+---
+// Raw Code Textarea Editor for Studio Publisher
+---
+<div class="code-input-container" id="codeInputWrap">
+  <textarea class="raw-code-area" id="codeArea" placeholder="<!DOCTYPE html>
+<html>
+<head>
+  <title>Interactive Application</title>
+</head>
+<body>
+  <h1>Hello OpenArtifacts!</h1>
+</body>
+</html>" oninput="handleCodeChange(this.value)"></textarea>
+  <div class="code-meta-bar">
+    <span id="charCount">0 bytes</span>
+    <span style="cursor: pointer; color: var(--text-secondary);" onclick="formatHtmlCode()">🧹 Clean Indent</span>
+  </div>
+</div>

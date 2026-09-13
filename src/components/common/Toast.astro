@@ -1,0 +1,8 @@
+---
+interface Props {
+  defaultText?: string;
+}
+
+const { defaultText = 'Notice' } = Astro.props;
+---
+<div class="toast" id="toast">{defaultText}</div>

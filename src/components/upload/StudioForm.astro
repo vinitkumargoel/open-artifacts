@@ -1,0 +1,66 @@
+---
+// Main Metadata & Publishing Form for Studio Publisher
+---
+<form id="studioForm" class="form-stack">
+  <div class="field-group">
+    <div class="field-header">
+      <label class="field-label" for="titleInput">Title</label>
+      <span class="field-hint" id="titleHint">Auto-extracted</span>
+    </div>
+    <input type="text" id="titleInput" class="input-field" placeholder="e.g. Financial Radar Dashboard">
+  </div>
+
+  <div class="field-group">
+    <div class="field-header">
+      <label class="field-label" for="descInput">Changelog Note</label>
+      <span class="field-hint">Optional</span>
+    </div>
+    <input type="text" id="descInput" class="input-field" placeholder="e.g. Added dark mode toggle">
+  </div>
+
+  <div class="field-group">
+    <div class="field-header">
+      <label class="field-label" for="ttlSelect">Retention</label>
+      <span class="field-hint" id="ttlHint">Deleted automatically once it lapses</span>
+    </div>
+    <div class="ttl-row">
+      <select id="ttlSelect" class="input-field" onchange="onTtlChange()">
+        <option value="">Unchanged</option>
+        <option value="7">7 days</option>
+        <option value="30" selected>30 days</option>
+        <option value="90">90 days</option>
+        <option value="365">1 year</option>
+        <option value="never">Keep forever</option>
+        <option value="custom">Custom&hellip;</option>
+      </select>
+      <input type="number" id="ttlDaysInput" class="input-field input-mono" min="1" max="3650" step="1"
+             placeholder="days" style="display: none;" oninput="onTtlChange()">
+    </div>
+  </div>
+
+  <!-- Advanced Toggle -->
+  <div>
+    <button type="button" class="advanced-toggle" onclick="toggleAdvanced()">
+      <span id="advChevron">&rsaquo;</span>
+      <span>Version Target & Access Token</span>
+    </button>
+
+    <div class="advanced-drawer" id="advancedDrawer">
+      <div class="field-group">
+        <label class="field-label" for="idInput">Update Existing UUID-4</label>
+        <input type="text" id="idInput" class="input-field input-mono" placeholder="Leave empty for new artifact">
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="tokenInput">Access Token</label>
+        <input type="password" id="tokenInput" class="input-field input-mono" placeholder="ARTIFACT_ACCESS_TOKEN">
+      </div>
+    </div>
+  </div>
+
+  <!-- Publish Action -->
+  <button type="submit" class="btn-publish" id="publishBtn">
+    <span>Publish Artifact</span>
+    <span class="kbd-badge">⌘↵</span>
+  </button>
+</form>

@@ -1,0 +1,39 @@
+---
+interface Props {
+  subtitle?: string;
+  activeSection?: 'history' | 'upload';
+}
+
+const { subtitle = 'Studio Publisher', activeSection = 'upload' } = Astro.props;
+---
+<nav class="top-nav">
+  <div class="brand-section">
+    <a href="/" class="brand-mark">&lambda;</a>
+    <a href="/" class="brand-title">OpenArtifacts</a>
+    <span class="brand-separator">/</span>
+    <span class="brand-sub">{subtitle}</span>
+  </div>
+  <div class="nav-actions">
+    {Astro.slots.has('actions') ? (
+      <slot name="actions" />
+    ) : activeSection === 'history' ? (
+      <button class="nav-btn" onclick="fetchArtifacts(true)" id="refreshBtn" title="Refresh artifact list">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        <span>Refresh</span>
+      </button>
+      <div class="token-pill" id="tokenPill" onclick="promptToken()" title="Manage API Access Token">
+        <span class="token-dot" id="tokenDot"></span>
+        <span id="tokenDisplay">token: unset</span>
+      </div>
+      <a href="/upload" class="nav-btn nav-btn-primary">&plus; New Artifact</a>
+    ) : (
+      <button class="nav-btn" onclick="openRecentsModal()">Recents</button>
+      <button class="nav-btn" onclick="openShortcutsModal()">Shortcuts</button>
+      <div class="token-pill" id="tokenPill" onclick="promptToken()" title="Configure Access Token">
+        <span class="token-dot" id="tokenDot"></span>
+        <span id="tokenDisplay">token: unset</span>
+      </div>
+      <a href="/history" class="nav-btn">Directory &rarr;</a>
+    )}
+  </div>
+</nav>

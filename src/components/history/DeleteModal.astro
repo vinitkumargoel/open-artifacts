@@ -1,0 +1,46 @@
+---
+// Delete Confirmation Modal with chunked progress tracking
+---
+<div class="modal-backdrop" id="deleteModal" onclick="handleModalBackdrop(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-icon-danger">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+      </div>
+      <div class="modal-title-group">
+        <h3 id="modalTitle">Confirm Deletion</h3>
+        <p id="modalDescription">Are you sure you want to permanently delete the selected artifact(s)? This action cannot be undone.</p>
+      </div>
+    </div>
+
+    <!-- Affected list -->
+    <div>
+      <div style="font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Artifacts to be permanently removed:</div>
+      <div class="modal-items-list" id="modalItemsList"></div>
+    </div>
+
+    <!-- Inline Token Input (Shown if token not set in localStorage) -->
+    <div class="modal-token-input" id="modalTokenWrap">
+      <label for="modalTokenInput">Access Token <span style="font-weight: 400; color: var(--text-tertiary);">(ARTIFACT_ACCESS_TOKEN)</span></label>
+      <input type="password" id="modalTokenInput" placeholder="Enter token to authorize deletion">
+    </div>
+
+    <!-- Delete Progress (Shown during deletion) -->
+    <div class="delete-progress-wrap" id="deleteProgressWrap" style="display: none;">
+      <div class="delete-progress-header">
+        <span class="delete-progress-status" id="deleteProgressStatus" aria-live="polite">Preparing...</span>
+        <span class="delete-progress-pct" id="deleteProgressPct">0%</span>
+      </div>
+      <div class="delete-progress-bar" role="progressbar" id="deleteProgressBar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+        <div class="delete-progress-fill" id="deleteProgressFill" style="width: 0%;"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-modal-cancel" id="cancelDeleteBtn" onclick="cancelOrCloseDeleteModal()">Cancel</button>
+      <button type="button" class="btn-modal-delete" id="confirmDeleteBtn" onclick="executeDeletion()">
+        <span>Delete Permanently</span>
+      </button>
+    </div>
+  </div>
+</div>
