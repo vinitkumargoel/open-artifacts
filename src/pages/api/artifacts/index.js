@@ -3,16 +3,48 @@
  * Ported one-for-one from the legacy Hono worker (since removed; see git history).
  */
 import { env } from 'cloudflare:workers';
-import { listAllArtifacts, processArtifactUpload, resolveTtlDays } from '../../../../worker/storage.js';
+import { listAllArtifacts, listArtifactsPage, LIST_SORTS, processArtifactUpload, resolveTtlDays } from '../../../../worker/storage.js';
+import { parsePositiveInt } from '../../../../worker/sanitize.js';
 import { json, jsonError, baseUrl, authGuard, getConfig, mapError, drainBody } from '../../../lib/http.js';
 import { handleBulkDelete } from '../../../lib/artifacts.js';
 
 export const prerender = false;
 
+const MAX_PAGE_SIZE = 100;
+
 export async function GET({ request }) {
-  const artifacts = await listAllArtifacts(env.ARTIFACTS, baseUrl(request));
-  return json({ artifacts, count: artifacts.length },
-    { headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } });
+  const noStore = { headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } };
+  const params = new URL(request.url).searchParams;
+
+  // Without page/limit the full list is returned, as it always was: agents
+  // and scripts depend on that shape. The dashboard always paginates.
+  if (!params.has('page') && !params.has('limit')) {
+    const artifacts = await listAllArtifacts(env.ARTIFACTS, baseUrl(request));
+    return json({ artifacts, count: artifacts.length }, noStore);
+  }
+
+  const page = parsePositiveInt(params.get('page') ?? '1');
+  const limit = parsePositiveInt(params.get('limit') ?? '25');
+  if (!page || !limit || limit > MAX_PAGE_SIZE) {
+    return jsonError('INVALID_PAGINATION', `page must be a positive integer and limit between 1 and ${MAX_PAGE_SIZE}.`, 400);
+  }
+  const sort = params.get('sort') || 'updated_desc';
+  if (!LIST_SORTS.includes(sort)) {
+    return jsonError('INVALID_SORT', `sort must be one of: ${LIST_SORTS.join(', ')}.`, 400);
+  }
+
+  const { items, total, stats } = await listArtifactsPage(env.ARTIFACTS, baseUrl(request), {
+    page, limit, sort, q: params.get('q') || ''
+  });
+  return json({
+    artifacts: items,
+    count: items.length,
+    total,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+    stats
+  }, noStore);
 }
 
 export async function POST({ request }) {

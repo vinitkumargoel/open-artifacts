@@ -31,16 +31,61 @@ export function setViewMode(mode) {
   }
 }
 
-export function updateStats(list) {
+export function updateStats(stats) {
   const statCount = document.getElementById('statArtifactsCount');
   const statVers = document.getElementById('statVersionsCount');
   const statStorage = document.getElementById('statStorageSize');
+  const s = stats || {};
 
-  if (statCount) statCount.textContent = list.length;
-  const totalVersions = list.reduce((acc, a) => acc + (a.versionCount || a.latestVersion || 1), 0);
-  if (statVers) statVers.textContent = totalVersions;
-  const totalBytes = list.reduce((acc, a) => acc + (a.totalSize || a.fileSize || 0), 0);
-  if (statStorage) statStorage.textContent = formatBytes(totalBytes);
+  if (statCount) statCount.textContent = s.artifacts || 0;
+  if (statVers) statVers.textContent = s.versions || 0;
+  if (statStorage) statStorage.textContent = formatBytes(s.totalSize || 0);
+}
+
+/** Page numbers to show: first, last, and a window around the current page, with gaps as null. */
+function pageWindow(current, last) {
+  const pages = new Set([1, last, current - 1, current, current + 1]);
+  if (current <= 3) [2, 3, 4].forEach(p => pages.add(p));
+  if (current >= last - 2) [last - 1, last - 2, last - 3].forEach(p => pages.add(p));
+  const sorted = [...pages].filter(p => p >= 1 && p <= last).sort((a, b) => a - b);
+  const out = [];
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - sorted[i - 1] > 1) out.push(null);
+    out.push(p);
+  });
+  return out;
+}
+
+export function renderPagination() {
+  const bar = document.getElementById('paginationBar');
+  const info = document.getElementById('paginationInfo');
+  const pagesEl = document.getElementById('paginationPages');
+  const sizeSelect = document.getElementById('pageSizeSelect');
+  if (!bar || !info || !pagesEl) return;
+
+  if (state.total === 0) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  if (sizeSelect) sizeSelect.value = String(state.pageSize);
+
+  const start = (state.page - 1) * state.pageSize + 1;
+  const end = start + state.displayedArtifacts.length - 1;
+  info.textContent = 'Showing ' + start + '\u2013' + Math.max(start, end) + ' of ' + state.total;
+
+  const last = state.totalPages;
+  const btn = (label, page, opts) => '<button type="button" class="page-btn' + (opts.active ? ' active' : '') + '"'
+    + (opts.disabled ? ' disabled' : '')
+    + (opts.active ? ' aria-current="page"' : '')
+    + ' aria-label="' + opts.aria + '"'
+    + ' onclick="goToPage(' + page + ')">' + label + '</button>';
+
+  pagesEl.innerHTML = btn('&larr; Prev', state.page - 1, { disabled: state.page <= 1, aria: 'Previous page' })
+    + pageWindow(state.page, last).map(p => p === null
+      ? '<span class="page-gap">&hellip;</span>'
+      : btn(String(p), p, { active: p === state.page, aria: 'Page ' + p })).join('')
+    + btn('Next &rarr;', state.page + 1, { disabled: state.page >= last, aria: 'Next page' });
 }
 
 export function expiryInfo(item) {
@@ -232,6 +277,7 @@ export function renderArtifacts() {
       if (emptyTitle) emptyTitle.textContent = 'No artifacts found';
       if (emptySub) emptySub.textContent = 'No published artifacts exist on this server yet. Create your first interactive application in Studio Publisher.';
     }
+    renderPagination();
     updateSelectionUI();
     return;
   }
@@ -336,5 +382,6 @@ export function renderArtifacts() {
   }).join('');
 
   setViewMode(state.currentViewMode);
+  renderPagination();
   updateSelectionUI();
 }

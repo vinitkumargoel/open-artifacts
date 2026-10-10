@@ -334,6 +334,44 @@ describe('Worker E2E: validation & auth', () => {
   });
 });
 
+describe('Worker E2E: paginated listing', () => {
+  it('pages through artifacts without overlap and reports totals', async () => {
+    const tag = `page-${Date.now()}`;
+    const ids = [];
+    for (let i = 0; i < 3; i++) {
+      const res = await uploadArtifact({ html: `<html><title>${tag} ${i}</title></html>`, visitor: 'page-up' });
+      ids.push((await res.json()).id);
+    }
+
+    const q = encodeURIComponent(tag);
+    const first = await (await get(`/api/artifacts?page=1&limit=2&q=${q}`, { visitor: 'page-read' })).json();
+    expect(first.total).toBe(3);
+    expect(first.totalPages).toBe(2);
+    expect(first.artifacts).toHaveLength(2);
+    const second = await (await get(`/api/artifacts?page=2&limit=2&q=${q}&sort=title_asc`, { visitor: 'page-read' })).json();
+    expect(second.artifacts.map(a => a.title)).toEqual([`${tag} 2`]);
+
+    // Default sort is answered from the R2 listing: newest publish first.
+    const newest = await (await get('/api/artifacts?page=1&limit=1', { visitor: 'page-read' })).json();
+    expect(newest.artifacts[0].id).toBe(ids[2]);
+    expect(newest.total).toBe(newest.stats.artifacts);
+    expect(newest.stats.versions).toBeGreaterThanOrEqual(newest.total);
+  });
+
+  it('rejects bad page, limit and sort values', async () => {
+    for (const qs of ['page=0', 'limit=101', 'limit=abc', 'page=1&sort=nope']) {
+      const res = await get(`/api/artifacts?${qs}`, { visitor: 'page-bad' });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('keeps the unpaginated full-list shape when no page/limit is given', async () => {
+    const body = await (await get('/api/artifacts', { visitor: 'page-legacy' })).json();
+    expect(body.count).toBe(body.artifacts.length);
+    expect(body.total).toBeUndefined();
+  });
+});
+
 describe('Worker E2E: bulk delete', () => {
   function bulkDelete(ids, { visitor = 'bulk', token = E2E_TOKEN } = {}) {
     return fetch(`${BASE}/api/artifacts/bulk-delete`, {

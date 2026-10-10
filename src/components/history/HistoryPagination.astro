@@ -1,0 +1,16 @@
+---
+// Page-number navigation for History Dashboard (filled in by scripts/history/render.js)
+---
+<nav class="pagination-bar" id="paginationBar" aria-label="Artifact pages" style="display: none;">
+  <div class="pagination-info" id="paginationInfo"></div>
+  <div class="pagination-pages" id="paginationPages"></div>
+  <label class="pagination-size">
+    <span>Per page</span>
+    <select id="pageSizeSelect" class="select-control" onchange="handlePageSize(this.value)">
+      <option value="10">10</option>
+      <option value="25" selected>25</option>
+      <option value="50">50</option>
+      <option value="100">100</option>
+    </select>
+  </label>
+</nav>

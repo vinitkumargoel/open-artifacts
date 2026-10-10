@@ -17,4 +17,11 @@ export const state = {
   expandedIds: new Set(),
   comparePicks: new Map(),
   pendingTtlId: null,
+
+  // Server-side pagination
+  page: 1,
+  pageSize: 25,
+  total: 0,
+  totalPages: 1,
+  fetchSeq: 0,
 };

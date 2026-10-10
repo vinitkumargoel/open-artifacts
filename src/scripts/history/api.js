@@ -4,53 +4,99 @@ import { showToast } from '../common.js';
 import { updateStats, renderVersionPanel } from './render.js';
 import { applyFiltersAndSort, closeTtlModal, refreshTtlSaveBtn, selectedTtlValue, closeDeleteModal } from './handlers.js';
 
-export async function fetchArtifacts(isRefresh = false) {
+/**
+ * Loads the current page (state.page / state.pageSize) with the toolbar's
+ * search and sort applied server-side.
+ * @param {boolean} [isRefresh] - user-triggered refresh: keep the list, toast on success
+ * @param {{quiet?: boolean}} [opts] - quiet: page/search/sort change, dim the list instead of the full loader
+ */
+export async function fetchArtifacts(isRefresh = false, { quiet = false } = {}) {
   const loading = document.getElementById('loadingState');
   const tableWrap = document.getElementById('tableViewWrap');
   const gridWrap = document.getElementById('gridViewWrap');
   const empty = document.getElementById('emptyState');
   const refreshBtn = document.getElementById('refreshBtn');
+  const main = document.getElementById('historyMain');
+  const seq = ++state.fetchSeq;
 
   if (isRefresh && refreshBtn) {
     refreshBtn.classList.add('loading');
   }
 
-  if (!isRefresh) {
+  if (quiet) {
+    if (main) main.classList.add('is-paging');
+  } else if (!isRefresh) {
     if (loading) loading.style.display = 'flex';
     if (tableWrap) tableWrap.style.display = 'none';
     if (gridWrap) gridWrap.style.display = 'none';
     if (empty) empty.style.display = 'none';
   }
 
+  const searchInput = document.getElementById('searchInput');
+  const sortSelect = document.getElementById('sortSelect');
+  const params = new URLSearchParams({
+    page: String(state.page),
+    limit: String(state.pageSize),
+    sort: sortSelect ? sortSelect.value : 'updated_desc'
+  });
+  const query = searchInput ? searchInput.value.trim() : '';
+  if (query) params.set('q', query);
+
   try {
-    const res = await fetch('/api/artifacts', {
+    const res = await fetch('/api/artifacts?' + params.toString(), {
       headers: { 'Cache-Control': 'no-cache' }
     });
 
     if (res.status === 401) {
-      window.location.href = '/unlock?next=' + encodeURIComponent(window.location.pathname);
+      window.location.href = '/unlock?next=' + encodeURIComponent(window.location.pathname + window.location.search);
       return;
     }
     if (!res.ok) throw new Error('Failed to fetch artifact directory');
     const data = await res.json();
+    if (seq !== state.fetchSeq) return; // a newer page/search request superseded this one
+
+    state.total = data.total || 0;
+    state.totalPages = data.totalPages || 1;
+
+    // Deleting the last items on the final page leaves us past the end: step back.
+    if (state.page > state.totalPages && state.total > 0) {
+      state.page = state.totalPages;
+      return fetchArtifacts(isRefresh, { quiet: true });
+    }
+
     state.rawArtifacts = data.artifacts || [];
 
-    // Prune any selected IDs that no longer exist
+    // Selection is per page: drop anything no longer on screen.
     const currentIdSet = new Set(state.rawArtifacts.map(a => a.id));
     for (const id of state.selectedIds) {
       if (!currentIdSet.has(id)) state.selectedIds.delete(id);
     }
 
-    updateStats(state.rawArtifacts);
+    updateStats(data.stats);
+    syncPageToUrl();
     applyFiltersAndSort();
 
-    if (isRefresh) showToast('Artifacts updated (' + state.rawArtifacts.length + ' total)');
+    if (isRefresh) showToast('Artifacts updated (' + state.total + ' total)');
   } catch (err) {
-    showToast('Error: ' + err.message);
+    if (seq === state.fetchSeq) showToast('Error: ' + err.message);
   } finally {
-    if (loading) loading.style.display = 'none';
-    if (refreshBtn) refreshBtn.classList.remove('loading');
+    if (seq === state.fetchSeq) {
+      if (loading) loading.style.display = 'none';
+      if (refreshBtn) refreshBtn.classList.remove('loading');
+      if (main) main.classList.remove('is-paging');
+    }
   }
+}
+
+function syncPageToUrl() {
+  try {
+    const url = new URL(window.location.href);
+    if (state.page > 1) url.searchParams.set('page', String(state.page));
+    else url.searchParams.delete('page');
+    if (state.pageSize !== 25) url.searchParams.set('limit', String(state.pageSize));
+    else url.searchParams.delete('limit');
+    window.history.replaceState(null, '', url.pathname + url.search);
+  } catch (_) {}
 }
 
 export async function loadVersionDetail(id) {
@@ -305,7 +351,6 @@ export async function executeDeletion() {
         progressStatus.textContent = `Deleted ${processedCount} of ${totalCount} (${pct}%)`;
       }
 
-      updateStats(state.rawArtifacts);
     }
   } catch (err) {
     if (err.name === 'AbortError' || state.deleteAbortController?.signal.aborted) {
@@ -318,6 +363,8 @@ export async function executeDeletion() {
     state.deleteAbortController = null;
 
     applyFiltersAndSort();
+    // Refill the page (and totals) from the server now that rows are gone.
+    if (successfullyDeletedIds.length > 0) fetchArtifacts(false, { quiet: true });
 
     if (userCancelled) {
       closeDeleteModal();

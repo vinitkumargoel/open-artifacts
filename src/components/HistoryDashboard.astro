@@ -10,6 +10,7 @@ import HistoryLoading from './history/HistoryLoading.astro';
 import HistoryEmpty from './history/HistoryEmpty.astro';
 import HistoryTable from './history/HistoryTable.astro';
 import HistoryGrid from './history/HistoryGrid.astro';
+import HistoryPagination from './history/HistoryPagination.astro';
 import DeleteModal from './history/DeleteModal.astro';
 import TtlModal from './history/TtlModal.astro';
 import '../styles/history.css';
@@ -17,13 +18,14 @@ import '../styles/history.css';
 <BaseLayout title="OpenArtifacts • Artifact History">
   <TopNav subtitle="History Directory" activeSection="history" />
 
-  <main class="main-container">
+  <main class="main-container" id="historyMain">
     <HistoryHeader />
     <HistoryToolbar />
     <HistoryLoading />
     <HistoryEmpty />
     <HistoryTable />
     <HistoryGrid />
+    <HistoryPagination />
   </main>
 
   <DeleteModal />

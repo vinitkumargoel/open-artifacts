@@ -9,7 +9,7 @@ https://artifact.vinitk.dev.
 ```bash
 npm run dev        # astro dev in real workerd, with live local R2 + DO bindings
 npm run build      # astro build -> dist/ (server bundle + wrangler.json)
-npm test           # astro build && vitest run (unit + 43-test e2e suite)
+npm test           # astro build && vitest run (unit + 46-test e2e suite)
 npm run test:e2e   # just the e2e suite (boots built worker under wrangler dev)
 npm run preview    # astro build && wrangler dev (the exact deploy artifact)
 npm run deploy     # astro build && wrangler deploy (production)

@@ -330,6 +330,127 @@ export async function listAllArtifacts(bucket, baseUrl) {
   return formatArtifactList(records.filter(m => m && !isExpired(m, now)), baseUrl);
 }
 
+/** Sorts that can be answered from the R2 listing alone, without reading any meta.json. */
+const LISTING_SORTS = {
+  updated_desc: (a, b) => b.updated - a.updated,
+  created_desc: (a, b) => b.created - a.created,
+  versions_desc: (a, b) => b.versionCount - a.versionCount || b.updated - a.updated,
+  size_desc: (a, b) => b.totalSize - a.totalSize || b.updated - a.updated
+};
+
+/** Sorts that need every meta.json, applied to formatted list items. */
+const META_SORTS = {
+  title_asc: (a, b) => (a.title || '').localeCompare(b.title || ''),
+  title_desc: (a, b) => (b.title || '').localeCompare(a.title || ''),
+  expiry_asc: (a, b) => {
+    const at = a.expiresAt ? Date.parse(a.expiresAt) : Infinity;
+    const bt = b.expiresAt ? Date.parse(b.expiresAt) : Infinity;
+    return at === bt ? 0 : at - bt;
+  }
+};
+
+export const LIST_SORTS = [...Object.keys(LISTING_SORTS), ...Object.keys(META_SORTS)];
+
+async function readMeta(bucket, key) {
+  try {
+    const obj = await bucket.get(key);
+    if (!obj) return null;
+    const meta = await obj.json();
+    return meta && isValidUuid4(meta._id) ? meta : null;
+  } catch (err) {
+    console.error(`[Storage] Skipping corrupt meta at ${key}:`, err);
+    return null;
+  }
+}
+
+/**
+ * One page of the history dashboard.
+ *
+ * The R2 listing alone (one call per 1000 objects) yields every artifact's
+ * version count, sizes and publish times, which is enough for the totals and
+ * for the default sorts. Only the requested page's meta.json objects are then
+ * read, so the cost of a page no longer grows with the size of the store.
+ * A search, or a sort on title/expiry, still has to read every meta.json.
+ *
+ * On the listing path, `total` and `stats` can include an expired artifact the
+ * daily sweep hasn't deleted yet; it is still filtered out of the page itself.
+ *
+ * @param {R2Bucket} bucket
+ * @param {string} baseUrl
+ * @param {{page:number, limit:number, sort?:string, q?:string}} opts
+ */
+export async function listArtifactsPage(bucket, baseUrl, { page, limit, sort = 'updated_desc', q = '' }) {
+  const byId = new Map();
+  let cursor;
+  do {
+    const listing = await bucket.list({ prefix: ARTIFACT_PREFIX, cursor });
+    for (const obj of listing.objects) {
+      const match = /^artifacts\/([^/]+)\/(meta\.json|v(\d+)\.html)$/.exec(obj.key);
+      if (!match) continue;
+      let entry = byId.get(match[1]);
+      if (!entry) {
+        entry = { id: match[1], metaKey: null, versionCount: 0, totalSize: 0, updated: 0, created: Infinity };
+        byId.set(match[1], entry);
+      }
+      if (match[2] === 'meta.json') {
+        entry.metaKey = obj.key;
+        continue;
+      }
+      const uploaded = new Date(obj.uploaded).getTime();
+      entry.versionCount++;
+      entry.totalSize += obj.size;
+      entry.updated = Math.max(entry.updated, uploaded);
+      entry.created = Math.min(entry.created, uploaded);
+    }
+    cursor = listing.truncated ? listing.cursor : undefined;
+  } while (cursor);
+
+  const entries = [...byId.values()].filter(e => e.metaKey && isValidUuid4(e.id));
+  const now = Date.now();
+  const query = String(q || '').trim().toLowerCase();
+
+  let total;
+  let items;
+  let stats;
+
+  if (!query && LISTING_SORTS[sort]) {
+    entries.sort(LISTING_SORTS[sort]);
+    total = entries.length;
+    stats = {
+      artifacts: total,
+      versions: entries.reduce((n, e) => n + e.versionCount, 0),
+      totalSize: entries.reduce((n, e) => n + e.totalSize, 0)
+    };
+    const slice = entries.slice((page - 1) * limit, page * limit);
+    const metas = await Promise.all(slice.map(e => readMeta(bucket, e.metaKey)));
+    // formatArtifactList re-sorts by updatedAt; restore the listing order.
+    const order = new Map(slice.map((e, i) => [e.id, i]));
+    items = formatArtifactList(metas.filter(m => m && !isExpired(m, now)), baseUrl)
+      .sort((a, b) => order.get(a.id) - order.get(b.id));
+  } else {
+    const metas = await Promise.all(entries.map(e => readMeta(bucket, e.metaKey)));
+    let list = formatArtifactList(metas.filter(m => m && !isExpired(m, now)), baseUrl);
+    stats = {
+      artifacts: list.length,
+      versions: list.reduce((n, a) => n + a.versionCount, 0),
+      totalSize: list.reduce((n, a) => n + a.totalSize, 0)
+    };
+    if (query) {
+      list = list.filter(a => (a.title || '').toLowerCase().includes(query)
+        || (a.description || '').toLowerCase().includes(query)
+        || a.id.toLowerCase().includes(query));
+    }
+    if (META_SORTS[sort]) list.sort(META_SORTS[sort]);
+    else if (sort === 'created_desc') list.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    else if (sort === 'versions_desc') list.sort((a, b) => b.versionCount - a.versionCount);
+    else if (sort === 'size_desc') list.sort((a, b) => b.totalSize - a.totalSize);
+    total = list.length;
+    items = list.slice((page - 1) * limit, page * limit);
+  }
+
+  return { items, total, stats };
+}
+
 /**
  * Deletes every artifact whose retention window has closed. Driven by the daily
  * cron trigger in src/worker.js.

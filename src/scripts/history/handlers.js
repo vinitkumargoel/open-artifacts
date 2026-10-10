@@ -11,10 +11,18 @@ import {
   expiryInfo
 } from './render.js';
 
+let searchTimer = null;
+
+function reloadFromFirstPage() {
+  state.page = 1;
+  if (window.fetchArtifacts) window.fetchArtifacts(false, { quiet: true });
+}
+
 export function handleSearch(query) {
   const clearBtn = document.getElementById('searchClearBtn');
   if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
-  applyFiltersAndSort();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(reloadFromFirstPage, 250);
 }
 
 export function clearSearch() {
@@ -25,49 +33,40 @@ export function clearSearch() {
   }
   const clearBtn = document.getElementById('searchClearBtn');
   if (clearBtn) clearBtn.style.display = 'none';
-  applyFiltersAndSort();
+  clearTimeout(searchTimer);
+  reloadFromFirstPage();
 }
 
 export function handleSort() {
-  applyFiltersAndSort();
+  reloadFromFirstPage();
 }
 
+export function goToPage(page) {
+  const target = Math.min(Math.max(1, page), state.totalPages);
+  if (target === state.page) return;
+  state.page = target;
+  if (window.fetchArtifacts) window.fetchArtifacts(false, { quiet: true });
+  const toolbar = document.querySelector('.toolbar-card');
+  if (toolbar) toolbar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+export function handlePageSize(value) {
+  const size = parseInt(value, 10);
+  if (!size || size === state.pageSize) return;
+  // Keep the first visible item on screen when the page size changes.
+  const firstIndex = (state.page - 1) * state.pageSize;
+  state.pageSize = size;
+  try { localStorage.setItem('open_artifacts_page_size', String(size)); } catch (_) {}
+  state.page = Math.floor(firstIndex / size) + 1;
+  if (window.fetchArtifacts) window.fetchArtifacts(false, { quiet: true });
+}
+
+/**
+ * Sorting, searching and paging happen server-side (see fetchArtifacts); this
+ * just re-renders the current page, e.g. after a TTL change or a delete.
+ */
 export function applyFiltersAndSort() {
-  const searchInput = document.getElementById('searchInput');
-  const sortSelect = document.getElementById('sortSelect');
-  const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
-  const sortVal = sortSelect ? sortSelect.value : 'updated_desc';
-
-  let filtered = state.rawArtifacts.filter(item => {
-    if (!query) return true;
-    const t = (item.title || '').toLowerCase();
-    const d = (item.description || '').toLowerCase();
-    const id = (item.id || '').toLowerCase();
-    return t.includes(query) || d.includes(query) || id.includes(query);
-  });
-
-  filtered.sort((a, b) => {
-    if (sortVal === 'updated_desc') {
-      return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
-    } else if (sortVal === 'created_desc') {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    } else if (sortVal === 'title_asc') {
-      return (a.title || '').localeCompare(b.title || '');
-    } else if (sortVal === 'title_desc') {
-      return (b.title || '').localeCompare(a.title || '');
-    } else if (sortVal === 'versions_desc') {
-      return (b.versionCount || 1) - (a.versionCount || 1);
-    } else if (sortVal === 'size_desc') {
-      return (b.totalSize || b.fileSize || 0) - (a.totalSize || a.fileSize || 0);
-    } else if (sortVal === 'expiry_asc') {
-      const aTime = a.expiresAt ? Date.parse(a.expiresAt) : Infinity;
-      const bTime = b.expiresAt ? Date.parse(b.expiresAt) : Infinity;
-      return aTime === bTime ? 0 : aTime - bTime;
-    }
-    return 0;
-  });
-
-  state.displayedArtifacts = filtered;
+  state.displayedArtifacts = state.rawArtifacts.slice();
   renderArtifacts();
 }
 

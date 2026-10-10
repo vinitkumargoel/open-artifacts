@@ -28,6 +28,8 @@ import {
   handleSearch,
   clearSearch,
   handleSort,
+  goToPage,
+  handlePageSize,
   applyFiltersAndSort,
   toggleVersionTimeline,
   retryVersionDetail,
@@ -60,6 +62,8 @@ Object.assign(window, {
   handleSearch,
   clearSearch,
   handleSort,
+  goToPage,
+  handlePageSize,
   applyFiltersAndSort,
   toggleVersionTimeline,
   retryVersionDetail,
@@ -143,13 +147,26 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
+// Restore page / page size from the URL (shareable) or the last-used size.
+function initPagination() {
+  const params = new URLSearchParams(window.location.search);
+  let size = parseInt(params.get('limit') || '', 10);
+  if (!size) {
+    try { size = parseInt(localStorage.getItem('open_artifacts_page_size') || '', 10); } catch (_) {}
+  }
+  if ([10, 25, 50, 100].includes(size)) state.pageSize = size;
+  const page = parseInt(params.get('page') || '', 10);
+  if (page > 0) state.page = page;
+}
+
 // Initialize on DOM ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    syncTokenDisplay();
-    fetchArtifacts();
-  });
-} else {
+function init() {
+  initPagination();
   syncTokenDisplay();
   fetchArtifacts();
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
 }
