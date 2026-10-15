@@ -11,6 +11,7 @@ import {
   deleteArtifact,
   bulkDeleteArtifacts,
   setArtifactTtl,
+  setArtifactVisibility,
   isExpired
 } from '../../worker/storage.js';
 import { json, jsonError, baseUrl, authGuard, mapError } from './http.js';
@@ -39,6 +40,7 @@ export async function handleGetOne(request, uuid) {
     viewCount: artifact.viewCount || 0,
     ttlDays: artifact.ttlDays ?? null,
     expiresAt: artifact.expiresAt || null,
+    public: artifact.public === true,
     url: `${origin}/a/${artifact._id}`,
     rawUrl: `${origin}/raw/${artifact._id}/${artifact.latestVersion}`,
     versions: (artifact.versions || []).map(v => ({
@@ -56,11 +58,11 @@ export async function handleGetOne(request, uuid) {
 }
 
 /**
- * PATCH /api/artifacts/:uuid — change retention without publishing a version.
- * Body: {"ttl": <days>} or {"ttl": "never"}. Write operation, so it needs the
- * publisher token like every other mutation.
+ * PATCH /api/artifacts/:uuid — change retention and/or link sharing without
+ * publishing a version. Body: {"ttl": <days>|"never"} and/or {"public": bool}.
+ * Write operation, so it needs the publisher token like every other mutation.
  */
-export async function handleSetTtl(request, uuid) {
+export async function handleUpdate(request, uuid) {
   const denied = await authGuard(request);
   if (denied) return denied;
 
@@ -72,25 +74,43 @@ export async function handleSetTtl(request, uuid) {
   }
   if (!body || typeof body !== 'object') body = {};
 
-  if (!('ttl' in body)) {
-    return jsonError('INVALID_REQUEST', 'Request body must include a "ttl" field: a number of days, or "never".', 400);
+  const hasTtl = 'ttl' in body;
+  const hasPublic = 'public' in body;
+  if (!hasTtl && !hasPublic) {
+    return jsonError('INVALID_REQUEST',
+      'Request body must include "ttl" (a number of days, or "never") and/or "public" (true or false).', 400);
+  }
+  if (hasPublic && typeof body.public !== 'boolean') {
+    return jsonError('INVALID_REQUEST', '"public" must be true or false.', 400);
   }
 
   let updated;
   try {
-    updated = await setArtifactTtl(env.ARTIFACTS, uuid, body.ttl);
+    if (hasTtl) updated = await setArtifactTtl(env.ARTIFACTS, uuid, body.ttl);
+    if (hasPublic) updated = await setArtifactVisibility(env.ARTIFACTS, uuid, body.public);
   } catch (err) {
     return mapError(err);
+  }
+
+  const messages = [];
+  if (hasTtl) {
+    messages.push(updated.expiresAt
+      ? `Artifact ${updated._id} now expires on ${updated.expiresAt}.`
+      : `Artifact ${updated._id} will be kept indefinitely.`);
+  }
+  if (hasPublic) {
+    messages.push(updated.public
+      ? `Anyone with the link can now view artifact ${updated._id}.`
+      : `Artifact ${updated._id} is now restricted to access-token holders.`);
   }
 
   return json({
     success: true,
     id: updated._id,
-    ttlDays: updated.ttlDays,
-    expiresAt: updated.expiresAt,
-    message: updated.expiresAt
-      ? `Artifact ${updated._id} now expires on ${updated.expiresAt}.`
-      : `Artifact ${updated._id} will be kept indefinitely.`
+    ttlDays: updated.ttlDays ?? null,
+    expiresAt: updated.expiresAt || null,
+    public: updated.public === true,
+    message: messages.join(' ')
   });
 }
 

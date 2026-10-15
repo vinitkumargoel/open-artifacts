@@ -18,7 +18,7 @@ import { env } from 'cloudflare:workers';
 import { checkRateLimit, checkGlobalRateLimit } from '../worker/ratelimit.js';
 import { sessionCookieHeader, mintSession, SESSION_TTL_SECONDS } from '../worker/session.js';
 import { getConfig, jsonError, mapError, drainBody, notFoundResponse } from './lib/http.js';
-import { readGate, isReadAuthorized, unauthorizedRead } from './lib/readauth.js';
+import { readGate, isReadAuthorized, unauthorizedRead, isPublicArtifactPath } from './lib/readauth.js';
 
 const BASELINE_SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
@@ -133,8 +133,17 @@ export async function onRequest(context, next) {
   const gateActive = gate !== null && config.readAuthEnabled;
   let renewCookie = null;
 
+  // Pages use this to hide owner-only controls (sharing, lock, history) from
+  // anonymous visitors of a publicly shared artifact.
+  context.locals.readAuthorized = !gateActive;
+
   if (gateActive) {
-    const verdict = await isReadAuthorized(request, url, gate);
+    let verdict = await isReadAuthorized(request, url, gate);
+    if (verdict.ok) {
+      context.locals.readAuthorized = true;
+    } else if (!verdict.unconfigured && gate !== 'api' && await isPublicArtifactPath(pathname)) {
+      verdict = { ok: true };
+    }
 
     if (!verdict.ok) {
       // Rejections are counted against their own budgets, never the read one:

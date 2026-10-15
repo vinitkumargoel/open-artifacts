@@ -205,6 +205,9 @@ export async function processArtifactUpload({ bucket, file, id, title, descripti
     latestVersion: targetVersion,
     ttlDays,
     expiresAt,
+    // Sharing is a property of the artifact, not the version: publishing a new
+    // version must never silently change who can see it.
+    public: artifactRecord?.public === true,
     viewCount: artifactRecord ? (artifactRecord.viewCount || 0) : 0,
     versions: artifactRecord ? [...(artifactRecord.versions || []), versionEntry] : [versionEntry],
     createdAt: artifactRecord ? (artifactRecord.createdAt || new Date().toISOString()) : new Date().toISOString(),
@@ -265,6 +268,37 @@ export async function setArtifactTtl(bucket, uuid, ttl) {
   const ttlDays = resolveTtlDays(ttl, DEFAULT_TTL_DAYS);
   const updated = { ...meta, ttlDays, expiresAt: computeExpiresAt(ttlDays) };
 
+  await bucket.put(metaKey(uuid), JSON.stringify(updated, null, 2), {
+    httpMetadata: { contentType: 'application/json' }
+  });
+  return updated;
+}
+
+/**
+ * Switches link sharing on or off. A public artifact can be read by anyone
+ * holding its URL, without the access token; a restricted one (the default)
+ * stays behind the read gate. Writing still always needs the token.
+ *
+ * @param {R2Bucket} bucket
+ * @param {string} uuid
+ * @param {boolean} isPublic
+ * @returns {Promise<object>} the updated metadata
+ */
+export async function setArtifactVisibility(bucket, uuid, isPublic) {
+  if (!isValidUuid4(uuid)) {
+    const err = new Error('Invalid UUID-4 format for artifact ID.');
+    err.code = 'INVALID_UUID_FORMAT';
+    throw err;
+  }
+
+  const meta = await getArtifactMetadata(bucket, uuid);
+  if (!meta) {
+    const err = new Error(`Artifact with ID ${uuid} not found.`);
+    err.code = 'ARTIFACT_NOT_FOUND';
+    throw err;
+  }
+
+  const updated = { ...meta, public: isPublic === true };
   await bucket.put(metaKey(uuid), JSON.stringify(updated, null, 2), {
     httpMetadata: { contentType: 'application/json' }
   });

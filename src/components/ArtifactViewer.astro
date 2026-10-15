@@ -8,7 +8,8 @@
  * assembled as a string and injected with set:html so it stays byte-identical
  * to the legacy view's output.
  */
-const { artifact, currentVersion, baseUrl = '', rawQuery = {} } = Astro.props;
+const { artifact, currentVersion, baseUrl = '', rawQuery = {}, canManage = true } = Astro.props;
+const isPublic = artifact.public === true;
 
 const uuid = artifact._id;
 const title = artifact.title || 'Untitled Artifact';
@@ -61,6 +62,8 @@ const viewerScript = `
     let latestVersion = ${latestVer};
     // version -> "exp=...&sig=..." minted by the server for this page load.
     const rawQuery = ${JSON.stringify(rawQuery)};
+    const canManage = ${canManage ? 'true' : 'false'};
+    let isPublic = ${isPublic ? 'true' : 'false'};
 
     function frameSrc(ver) {
       const q = rawQuery[ver];
@@ -101,14 +104,120 @@ const viewerScript = `
       }
     }
 
-    function copyShareUrl() {
-      const shareUrl = window.location.origin + (activeVersion === latestVersion ? '/a/' + uuid : '/a/' + uuid + '/v/' + activeVersion);
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        showToast('Link copied to clipboard');
+    function currentShareUrl() {
+      return window.location.origin + (activeVersion === latestVersion ? '/a/' + uuid : '/a/' + uuid + '/v/' + activeVersion);
+    }
+
+    function writeClipboard(text, okMsg) {
+      return navigator.clipboard.writeText(text).then(() => {
+        showToast(okMsg);
       }).catch(() => {
-        prompt('Copy artifact URL:', shareUrl);
+        prompt('Copy artifact URL:', text);
       });
     }
+
+    // Owners get the Drive-style "who can open this link?" dialog; anonymous
+    // visitors of a public artifact can only copy.
+    function copyShareUrl() {
+      if (!canManage) {
+        writeClipboard(currentShareUrl(), 'Link copied to clipboard');
+        return;
+      }
+      openShareModal();
+    }
+
+    function storedToken() {
+      try {
+        return localStorage.getItem('open_artifacts_token') || sessionStorage.getItem('open_artifacts_token') || '';
+      } catch (err) {
+        return '';
+      }
+    }
+
+    function selectedAccess() {
+      const checked = document.querySelector('input[name="shareAccess"]:checked');
+      return checked ? checked.value === 'public' : isPublic;
+    }
+
+    function syncShareModal() {
+      const wantPublic = selectedAccess();
+      document.querySelectorAll('.share-option').forEach(el => {
+        el.classList.toggle('selected', (el.dataset.access === 'public') === wantPublic);
+      });
+      // A token is only needed to *change* access, and only when this browser
+      // unlocked via cookie without keeping the token around.
+      const needsToken = wantPublic !== isPublic && !storedToken();
+      document.getElementById('shareTokenRow').hidden = !needsToken;
+      document.getElementById('shareConfirm').textContent =
+        wantPublic === isPublic ? 'Copy link' : (wantPublic ? 'Make public & copy link' : 'Restrict & copy link');
+      document.getElementById('shareError').textContent = '';
+    }
+
+    function openShareModal() {
+      document.getElementById(isPublic ? 'shareAccessPublic' : 'shareAccessPrivate').checked = true;
+      document.getElementById('shareUrlText').textContent = currentShareUrl();
+      document.getElementById('shareTokenInput').value = '';
+      syncShareModal();
+      document.getElementById('shareModal').hidden = false;
+      document.getElementById('shareConfirm').focus();
+    }
+
+    function closeShareModal() {
+      document.getElementById('shareModal').hidden = true;
+    }
+
+    async function confirmShare() {
+      const wantPublic = selectedAccess();
+      const btn = document.getElementById('shareConfirm');
+      const errEl = document.getElementById('shareError');
+
+      if (wantPublic !== isPublic) {
+        const token = storedToken() || document.getElementById('shareTokenInput').value.trim();
+        if (!token) {
+          errEl.textContent = 'Enter your access token to change who can open this link.';
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/artifacts/' + uuid, {
+            method: 'PATCH',
+            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ public: wantPublic })
+          });
+          if (!res.ok) {
+            let msg = 'Could not update sharing (HTTP ' + res.status + ').';
+            try { msg = (await res.json()).error.message || msg; } catch (err) {}
+            errEl.textContent = res.status === 401 ? 'That access token was rejected.' : msg;
+            return;
+          }
+          isPublic = wantPublic;
+          renderAccessBadge();
+        } catch (err) {
+          errEl.textContent = 'Network error — sharing was not changed.';
+          return;
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      closeShareModal();
+      writeClipboard(currentShareUrl(), isPublic
+        ? 'Public link copied — anyone with it can view'
+        : 'Link copied — only token holders can open it');
+    }
+
+    function renderAccessBadge() {
+      const badge = document.getElementById('accessBadge');
+      if (!badge) return;
+      badge.textContent = isPublic ? 'Public' : 'Restricted';
+      badge.classList.toggle('is-public', isPublic);
+      badge.title = isPublic ? 'Anyone with the link can view' : 'Only access-token holders can view';
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const modal = document.getElementById('shareModal');
+      if (e.key === 'Escape' && modal && !modal.hidden) closeShareModal();
+    });
 
     // Drops both halves of the read grant: the cookie the server checks and
     // the token in storage that /unlock would otherwise replay straight back.
@@ -431,6 +540,119 @@ const viewerScript = `
       background: #27272a;
     }
 
+    .access-badge {
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      color: var(--text-secondary);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 2px 8px;
+      flex-shrink: 0;
+    }
+    .access-badge.is-public {
+      color: #166534;
+      background: #f0fdf4;
+      border-color: #86efac;
+    }
+
+    /* ============ Share Modal ============ */
+    .share-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(24,24,27,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 1000;
+    }
+    .share-backdrop[hidden] { display: none; }
+    .share-dialog {
+      width: 100%;
+      max-width: 440px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 20px 50px -12px rgba(0,0,0,0.25);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .share-dialog h2 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .share-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: -6px;
+    }
+    .share-option {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .share-option:hover { border-color: var(--text-secondary); }
+    .share-option.selected {
+      border-color: var(--accent);
+      background: var(--bg-subtle);
+    }
+    .share-option input { margin-top: 3px; accent-color: var(--accent); }
+    .share-option strong { display: block; font-size: 13.5px; font-weight: 600; }
+    .share-option span { display: block; font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+    .share-url {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      word-break: break-all;
+    }
+    .share-token input {
+      width: 100%;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0 10px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      margin-top: 6px;
+    }
+    .share-token[hidden] { display: none; }
+    .share-error { font-size: 12.5px; color: #b91c1c; min-height: 0; }
+    .share-error:empty { display: none; }
+    .share-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .btn-ghost {
+      height: 32px;
+      padding: 0 14px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 500;
+      font-family: var(--font-sans);
+      cursor: pointer;
+    }
+    .btn-ghost:hover { border-color: var(--text-secondary); }
+    .share-actions .copy-btn { height: 32px; }
+    .share-actions .copy-btn:disabled { opacity: 0.6; cursor: wait; }
+
     /* ============ Sandbox Stage ============ */
     .stage-container {
       flex: 1;
@@ -523,6 +745,12 @@ const viewerScript = `
       <span class="brand-sep">/</span>
       <h1 class="artifact-title" title={description || title}>{title}</h1>
       {versionNote && <span class="version-note" title={versionNote}>{versionNote}</span>}
+      {canManage && (
+        <span id="accessBadge" class={`access-badge${isPublic ? ' is-public' : ''}`}
+              title={isPublic ? 'Anyone with the link can view' : 'Only access-token holders can view'}>
+          {isPublic ? 'Public' : 'Restricted'}
+        </span>
+      )}
       {showExpiry && (
         <span class="expiry-chip" title={`This artifact is scheduled for deletion on ${expiresAt}`}>
           expires in {daysLeft <= 0 ? 'under a day' : `${daysLeft}d`}
@@ -568,27 +796,31 @@ const viewerScript = `
       <span class="control-divider"></span>
 
       <!-- Action Buttons -->
-      <a href="/history" class="icon-btn" title="View all artifacts (History)" aria-label="View all artifacts">
-        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-      </a>
+      {canManage && (
+        <a href="/history" class="icon-btn" title="View all artifacts (History)" aria-label="View all artifacts">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+        </a>
+      )}
       <button class="icon-btn" onclick="toggleFullscreen()" title="Toggle fullscreen" aria-label="Toggle fullscreen">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"></path></svg>
       </button>
       <a href={rawUrl} target="_blank" rel="noopener noreferrer" class="icon-btn" title="Open raw HTML in new tab" aria-label="Open raw HTML in new tab">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 18l6-6-6-6M8 6l-6 6 6 6"></path></svg>
       </a>
-      <button class="copy-btn" onclick="copyShareUrl()" title="Copy link to this version">
+      <button class="copy-btn" onclick="copyShareUrl()" title={canManage ? 'Share this artifact' : 'Copy link to this version'}>
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"></path></svg>
-        <span>Copy Link</span>
+        <span>{canManage ? 'Share' : 'Copy Link'}</span>
       </button>
 
       <!-- Reaching this page at all means the read session is valid, so the
            pill is a lock control rather than a status indicator. -->
-      <button type="button" class="session-pill" id="sessionPill" onclick="lockBrowser()"
-              title="Forget the access token on this device and lock the viewer">
-        <span class="session-dot"></span>
-        <span>unlocked</span>
-      </button>
+      {canManage && (
+        <button type="button" class="session-pill" id="sessionPill" onclick="lockBrowser()"
+                title="Forget the access token on this device and lock the viewer">
+          <span class="session-dot"></span>
+          <span>unlocked</span>
+        </button>
+      )}
     </div>
   </header>
 
@@ -603,6 +835,39 @@ const viewerScript = `
       title={title}>
     </iframe>
   </main>
+
+  {canManage && (
+    <div class="share-backdrop" id="shareModal" hidden onclick="if (event.target === this) closeShareModal()">
+      <div class="share-dialog" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+        <h2 id="shareTitle">Share “{title}”</h2>
+        <div class="share-label">Who can open this link?</div>
+        <label class="share-option" data-access="private">
+          <input type="radio" name="shareAccess" id="shareAccessPrivate" value="private" onchange="syncShareModal()">
+          <div>
+            <strong>🔒 Restricted</strong>
+            <span>Only people with the access token can open it.</span>
+          </div>
+        </label>
+        <label class="share-option" data-access="public">
+          <input type="radio" name="shareAccess" id="shareAccessPublic" value="public" onchange="syncShareModal()">
+          <div>
+            <strong>🌐 Anyone with the link</strong>
+            <span>Public — anyone who has the link can view. No token needed.</span>
+          </div>
+        </label>
+        <div class="share-url" id="shareUrlText"></div>
+        <label class="share-token" id="shareTokenRow" hidden>
+          <span class="share-label">Access token (needed to change sharing)</span>
+          <input type="password" id="shareTokenInput" autocomplete="off" placeholder="ARTIFACT_ACCESS_TOKEN">
+        </label>
+        <div class="share-error" id="shareError" role="alert"></div>
+        <div class="share-actions">
+          <button type="button" class="btn-ghost" onclick="closeShareModal()">Cancel</button>
+          <button type="button" class="copy-btn" id="shareConfirm" onclick="confirmShare()">Copy link</button>
+        </div>
+      </div>
+    </div>
+  )}
 
   <div class="toast" id="toast" role="alert">Copied to clipboard</div>
 

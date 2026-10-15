@@ -44,4 +44,4 @@ for (const [k, v] of Object.entries(VIEWER_SECURITY_HEADERS)) {
 Astro.response.headers.set('Content-Type', 'text/html; charset=UTF-8');
 Astro.response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
 ---
-<ArtifactViewer artifact={metadata} currentVersion={latestVer} baseUrl={baseUrl(Astro.request)} rawQuery={rawQuery} />
+<ArtifactViewer artifact={metadata} currentVersion={latestVer} baseUrl={baseUrl(Astro.request)} rawQuery={rawQuery} canManage={Astro.locals.readAuthorized !== false} />

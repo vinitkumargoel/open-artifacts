@@ -17,9 +17,40 @@ import {
   verifyRawCapability,
   signRawCapability
 } from '../../worker/session.js';
+import { env } from 'cloudflare:workers';
+import { getArtifactMetadata, isExpired } from '../../worker/storage.js';
+import { isValidUuid4 } from '../../worker/sanitize.js';
 import { getConfig, jsonError } from './http.js';
 
 const RAW_VERSION_PATH = /^\/raw\/([^/]+)\/([^/]+)$/;
+
+// The only routes a public artifact opens up: its viewer shells, its diff page
+// and its raw bodies. /history and the JSON API stay token-only, so making one
+// artifact public never reveals the catalogue or any other artifact.
+const PUBLIC_ARTIFACT_PATH = /^\/(?:a\/([^/]+)(?:\/v\/[^/]+|\/diff)?|raw\/([^/]+)(?:\/[^/]+)?)$/;
+
+/**
+ * True when the path belongs to an artifact its owner has shared publicly
+ * ("anyone with the link"). Consulted only after every credential has failed,
+ * so authorised traffic never pays for the extra R2 read.
+ *
+ * An expired artifact is never public: the route itself would 410, but saying
+ * no here keeps the gate's answer independent of the route's.
+ */
+export async function isPublicArtifactPath(path) {
+  const match = PUBLIC_ARTIFACT_PATH.exec(path);
+  if (!match) return false;
+  const uuid = match[1] || match[2];
+  if (!isValidUuid4(uuid)) return false;
+  try {
+    const meta = await getArtifactMetadata(env.ARTIFACTS, uuid);
+    return !!meta && meta.public === true && !isExpired(meta);
+  } catch (err) {
+    // Fail closed: an R2 hiccup must turn into a 401, never an open door.
+    console.error('[readauth] public-artifact lookup failed', err);
+    return false;
+  }
+}
 
 /**
  * Classifies a request as read-gated or not.

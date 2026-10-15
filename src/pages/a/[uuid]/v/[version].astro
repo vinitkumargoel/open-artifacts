@@ -53,4 +53,4 @@ Astro.response.headers.set('Content-Type', 'text/html; charset=UTF-8');
 // session is dropped, and would hide newly published versions besides.
 Astro.response.headers.set('Cache-Control', 'no-store');
 ---
-<ArtifactViewer artifact={metadata} currentVersion={verNum} baseUrl={baseUrl(Astro.request)} rawQuery={rawQuery} />
+<ArtifactViewer artifact={metadata} currentVersion={verNum} baseUrl={baseUrl(Astro.request)} rawQuery={rawQuery} canManage={Astro.locals.readAuthorized !== false} />

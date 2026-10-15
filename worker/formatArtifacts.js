@@ -29,6 +29,7 @@ export function formatArtifactList(items, baseUrl) {
       // null / absent means "never expires" — see isExpired() in storage.js.
       ttlDays: item.ttlDays ?? null,
       expiresAt: item.expiresAt || null,
+      public: item.public === true,
       url: `${baseUrl}/a/${item._id}`,
       rawUrl: `${baseUrl}/raw/${item._id}/${latestVer}`,
       versions: versions.map(v => ({

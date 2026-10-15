@@ -606,6 +606,64 @@ describe('Worker E2E: read authentication', () => {
     expect((await get(`/api/artifacts/${KNOWN_UUID}`, { visitor: 'ra-csrf' })).status).toBe(200);
   });
 
+  it('lets anyone read a publicly shared artifact, and only that artifact', async () => {
+    const anon = (p, visitor) => get(p, { visitor, auth: false, headers: { accept: 'application/json' } });
+
+    // Restricted by default.
+    expect((await anon(`/a/${KNOWN_UUID}`, 'pub-1')).status).toBe(401);
+
+    // Flipping it needs the bearer token — the cookie alone is refused.
+    const { cookie } = await openSession({ visitor: 'pub-cookie' });
+    const viaCookie = await fetch(`${BASE}/api/artifacts/${KNOWN_UUID}`, {
+      method: 'PATCH',
+      headers: { 'x-e2e-visitor': 'pub-cookie', cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ public: true })
+    });
+    expect(viaCookie.status).toBe(401);
+
+    const bad = await fetch(`${BASE}/api/artifacts/${KNOWN_UUID}`, {
+      method: 'PATCH',
+      headers: { 'x-e2e-visitor': 'pub-bad', authorization: `Bearer ${E2E_TOKEN}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ public: 'yes' })
+    });
+    expect(bad.status).toBe(400);
+
+    const share = async (value, visitor) => fetch(`${BASE}/api/artifacts/${KNOWN_UUID}`, {
+      method: 'PATCH',
+      headers: { 'x-e2e-visitor': visitor, authorization: `Bearer ${E2E_TOKEN}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ public: value })
+    });
+    try {
+      const on = await share(true, 'pub-on');
+      expect(on.status).toBe(200);
+      expect((await on.json()).public).toBe(true);
+
+      const shell = await anon(`/a/${KNOWN_UUID}`, 'pub-2');
+      expect(shell.status).toBe(200);
+      const html = await shell.text();
+      // Owner-only controls are not rendered for an anonymous visitor.
+      expect(html).not.toContain('id="shareModal"');
+      expect(html).not.toContain('id="sessionPill"');
+      expect((await anon(`/raw/${KNOWN_UUID}/1`, 'pub-3')).status).toBe(200);
+      expect((await anon(`/a/${KNOWN_UUID}/v/1`, 'pub-4')).status).toBe(200);
+
+      // Public never extends to the catalogue, the API, or other artifacts.
+      expect((await anon('/history', 'pub-5')).status).toBe(401);
+      expect((await anon(`/api/artifacts/${KNOWN_UUID}`, 'pub-6')).status).toBe(401);
+      expect((await anon('/api/artifacts', 'pub-7')).status).toBe(401);
+      expect((await anon(`/raw/${SYNTH_UUIDS[0]}/1`, 'pub-8')).status).toBe(401);
+
+      // The owner's view still offers the share dialog.
+      const owned = await (await get(`/a/${KNOWN_UUID}`, { visitor: 'pub-owner' })).text();
+      expect(owned).toContain('id="shareModal"');
+    } finally {
+      expect((await share(false, 'pub-off')).status).toBe(200);
+    }
+
+    expect((await anon(`/a/${KNOWN_UUID}`, 'pub-9')).status).toBe(401);
+    expect((await anon(`/raw/${KNOWN_UUID}/1`, 'pub-10')).status).toBe(401);
+  });
+
   it('clears the session on DELETE /api/session', async () => {
     const res = await fetch(`${BASE}/api/session`, {
       method: 'DELETE',
